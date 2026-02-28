@@ -87,6 +87,13 @@ function formatCoordinate(value: number) {
   return value.toFixed(6);
 }
 
+function escapeCsvField(value: string | number | null | undefined) {
+  const normalizedValue = value == null ? "" : String(value);
+  const escapedValue = normalizedValue.replace(/"/g, "\"\"");
+
+  return `"${escapedValue}"`;
+}
+
 function buildOutletSearchText(outlet: OutletView) {
   return [
     outlet.storeCode,
@@ -271,6 +278,24 @@ export function AssignmentManager({
       })
     : removedCodes;
   const visibleAssignments = showInactiveHistory ? assignments : activeAssignments;
+  const inactiveAssignments = assignments.filter((assignment) => !assignment.active);
+  const pendingRemovalCount = assignments.filter(
+    (assignment) => assignment.active && removedCodeSet.has(assignment.kodeToko),
+  ).length;
+  const pendingReactivationCount = assignments.filter(
+    (assignment) => !assignment.active && selectedCodeSet.has(assignment.kodeToko),
+  ).length;
+  const draftActiveCount = selectedCodes.length;
+
+  function getDraftStateLabel(assignment: AssignmentView) {
+    if (assignment.active) {
+      return selectedCodeSet.has(assignment.kodeToko) ? "STAGED_ACTIVE" : "PENDING_REMOVAL";
+    }
+
+    return selectedCodeSet.has(assignment.kodeToko)
+      ? "PENDING_REACTIVATION"
+      : "INACTIVE_HISTORY";
+  }
 
   function hydrateDraftFromAssignments(nextAssignments: AssignmentView[]) {
     const activeCodes = nextAssignments
@@ -460,6 +485,77 @@ export function AssignmentManager({
         }
       })();
     });
+  }
+
+  function handleExportAssignments() {
+    if (!selectedUser || assignments.length === 0) {
+      return;
+    }
+
+    const headers = [
+      "Field Force",
+      "Email",
+      "Assignment Status",
+      "Draft State",
+      "Kode Toko",
+      "Nama Toko",
+      "Alamat",
+      "Kecamatan",
+      "Kabupaten",
+      "Distrik",
+      "Territory",
+      "Group Territory",
+      "Supervisor",
+      "No Telp SPV",
+      "Type Outlet",
+      "Visual PPOSM",
+      "Brand",
+      "Ukuran",
+      "Latitude",
+      "Longitude",
+    ];
+
+    const rows = assignments.map((assignment) =>
+      [
+        selectedUser.name,
+        selectedUser.email,
+        assignment.active ? "ACTIVE" : "INACTIVE",
+        getDraftStateLabel(assignment),
+        assignment.kodeToko,
+        assignment.namaToko,
+        assignment.alamat,
+        assignment.kecamatan,
+        assignment.kabupaten,
+        assignment.district,
+        assignment.territory,
+        assignment.territoryGroup,
+        assignment.supervisorName,
+        assignment.noTelpSpv,
+        assignment.typeOutlet,
+        assignment.visualPposm,
+        assignment.brand,
+        assignment.ukuran,
+        formatCoordinate(assignment.lat),
+        formatCoordinate(assignment.lon),
+      ]
+        .map((value) => escapeCsvField(value))
+        .join(","),
+    );
+
+    const csvContent = [headers.map((header) => escapeCsvField(header)).join(","), ...rows].join(
+      "\n",
+    );
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const objectUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const safeName = selectedUser.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+    link.href = objectUrl;
+    link.download = `assignments-${safeName || "field-force"}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(objectUrl);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -816,6 +912,14 @@ export function AssignmentManager({
             </h2>
             <div className="flex flex-wrap items-center gap-2">
               <button
+                className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={assignments.length === 0}
+                onClick={handleExportAssignments}
+                type="button"
+              >
+                Export CSV
+              </button>
+              <button
                 className={`rounded-2xl border px-3 py-2 text-sm font-semibold transition ${
                   showInactiveHistory
                     ? "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
@@ -850,6 +954,39 @@ export function AssignmentManager({
           <p className="mt-2 text-sm leading-6 text-slate-600">
             Gunakan tombol di bawah untuk batalkan outlet aktif atau restore lagi sebelum menekan save.
           </p>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Active
+              </p>
+              <p className="mt-1 font-semibold text-slate-900">{activeAssignments.length}</p>
+            </div>
+            <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Inactive
+              </p>
+              <p className="mt-1 font-semibold text-slate-900">{inactiveAssignments.length}</p>
+            </div>
+            <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-500">
+                Pending Remove
+              </p>
+              <p className="mt-1 font-semibold text-rose-800">{pendingRemovalCount}</p>
+            </div>
+            <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-500">
+                Pending Restore
+              </p>
+              <p className="mt-1 font-semibold text-emerald-800">{pendingReactivationCount}</p>
+            </div>
+            <div className="rounded-2xl bg-cyan-50 px-4 py-3 text-sm text-cyan-700">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-500">
+                Draft Active
+              </p>
+              <p className="mt-1 font-semibold text-cyan-800">{draftActiveCount}</p>
+            </div>
+          </div>
 
           {loadError ? (
             <p className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
