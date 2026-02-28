@@ -110,7 +110,7 @@ function OutletDetailCard({
   outlet,
 }: {
   actionLabel?: string;
-  actionVariant?: "add" | "remove";
+  actionVariant?: "add" | "remove" | "restore";
   onAction?: () => void;
   outlet: {
     kodeToko: string;
@@ -134,6 +134,8 @@ function OutletDetailCard({
   const actionClassName =
     actionVariant === "remove"
       ? "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300"
+      : actionVariant === "restore"
+        ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300"
       : "border-cyan-200 bg-cyan-50 text-cyan-800 hover:border-cyan-300";
 
   return (
@@ -219,6 +221,7 @@ export function AssignmentManager({
   const [selectedUserId, setSelectedUserId] = useState(users[0]?.id ?? "");
   const [textareaValue, setTextareaValue] = useState("");
   const [outletQuery, setOutletQuery] = useState("");
+  const [removedCodes, setRemovedCodes] = useState<string[]>([]);
   const [assignments, setAssignments] = useState<AssignmentView[]>([]);
   const [submitResult, setSubmitResult] = useState<BulkAssignmentResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -229,9 +232,13 @@ export function AssignmentManager({
   const selectedUser = users.find((candidate) => candidate.id === selectedUserId) ?? null;
   const selectedCodes = parseOutletCodes(textareaValue);
   const selectedCodeSet = new Set(selectedCodes);
+  const removedCodeSet = new Set(removedCodes);
   const outletByCode = new Map(outlets.map((outlet) => [outlet.storeCode, outlet]));
 
   const selectedOutlets = selectedCodes
+    .map((code) => outletByCode.get(code))
+    .filter((outlet): outlet is OutletView => Boolean(outlet));
+  const removedOutlets = removedCodes
     .map((code) => outletByCode.get(code))
     .filter((outlet): outlet is OutletView => Boolean(outlet));
 
@@ -309,6 +316,9 @@ export function AssignmentManager({
 
     const nextCodes = [...selectedCodes, code];
     setTextareaValue(nextCodes.join("\n"));
+    setRemovedCodes((currentCodes) =>
+      currentCodes.filter((removedCode) => removedCode !== code),
+    );
     setSubmitResult(null);
     setSubmitError(null);
   }
@@ -316,8 +326,15 @@ export function AssignmentManager({
   function handleRemoveOutlet(code: string) {
     const nextCodes = selectedCodes.filter((selectedCode) => selectedCode !== code);
     setTextareaValue(nextCodes.join("\n"));
+    setRemovedCodes((currentCodes) =>
+      currentCodes.includes(code) ? currentCodes : [code, ...currentCodes],
+    );
     setSubmitResult(null);
     setSubmitError(null);
+  }
+
+  function handleRestoreOutlet(code: string) {
+    handleAddOutlet(code);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -357,6 +374,7 @@ export function AssignmentManager({
 
           setSubmitResult(payload);
           setTextareaValue("");
+          setRemovedCodes([]);
           await loadAssignmentsForUser(selectedUser.id);
         } catch (error) {
           setSubmitError(error instanceof Error ? error.message : "Unable to save assignments.");
@@ -388,6 +406,7 @@ export function AssignmentManager({
                   setSelectedUserId(event.target.value);
                   setAssignments([]);
                   setLoadError(null);
+                  setRemovedCodes([]);
                   setSubmitResult(null);
                 }}
                 value={selectedUserId}
@@ -442,7 +461,15 @@ export function AssignmentManager({
               <span>Kode Toko Terpilih</span>
               <textarea
                 className="min-h-40 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-                onChange={(event) => setTextareaValue(event.target.value)}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  const nextSelectedSet = new Set(parseOutletCodes(nextValue));
+
+                  setTextareaValue(nextValue);
+                  setRemovedCodes((currentCodes) =>
+                    currentCodes.filter((code) => !nextSelectedSet.has(code)),
+                  );
+                }}
                 placeholder={"TOKO-001\nTOKO-002\nTOKO-003"}
                 value={textareaValue}
               />
@@ -546,6 +573,70 @@ export function AssignmentManager({
         </section>
 
         <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
+                Removed Queue
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+                Pilihan yang dihapus
+              </h2>
+            </div>
+            <p className="text-sm text-slate-500">{removedOutlets.length} outlet siap di-restore</p>
+          </div>
+
+          <div className="mt-5 space-y-4">
+            {removedCodes.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
+                Belum ada outlet yang di-remove.
+              </p>
+            ) : (
+              removedCodes.map((code) => {
+                const outlet = outletByCode.get(code);
+
+                if (!outlet) {
+                  return (
+                    <div
+                      className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600"
+                      key={code}
+                    >
+                      {code} sudah dihapus dari pilihan dan tidak ditemukan di master outlet.
+                    </div>
+                  );
+                }
+
+                return (
+                  <OutletDetailCard
+                    actionLabel="Restore"
+                    actionVariant="restore"
+                    key={outlet.storeCode}
+                    onAction={() => handleRestoreOutlet(outlet.storeCode)}
+                    outlet={{
+                      kodeToko: outlet.storeCode,
+                      namaToko: outlet.name,
+                      alamat: outlet.address,
+                      kecamatan: outlet.subdistrict,
+                      kabupaten: outlet.regency,
+                      district: outlet.district,
+                      territory: outlet.territory,
+                      territoryGroup: outlet.territoryGroup,
+                      supervisorName: outlet.supervisorName,
+                      noTelpSpv: outlet.supervisorPhone,
+                      typeOutlet: outlet.typeOutlet,
+                      visualPposm: outlet.visualPposm,
+                      brand: outlet.brand,
+                      ukuran: outlet.size,
+                      lat: outlet.latitude,
+                      lon: outlet.longitude,
+                    }}
+                  />
+                );
+              })
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
             Current Assignments
           </p>
@@ -606,12 +697,29 @@ export function AssignmentManager({
           ) : (
             visibleOutlets.map((outlet) => (
               <OutletDetailCard
-                actionLabel={selectedCodeSet.has(outlet.storeCode) ? "Remove" : "Add"}
-                actionVariant={selectedCodeSet.has(outlet.storeCode) ? "remove" : "add"}
+                actionLabel={
+                  selectedCodeSet.has(outlet.storeCode)
+                    ? "Remove"
+                    : removedCodeSet.has(outlet.storeCode)
+                      ? "Restore"
+                      : "Add"
+                }
+                actionVariant={
+                  selectedCodeSet.has(outlet.storeCode)
+                    ? "remove"
+                    : removedCodeSet.has(outlet.storeCode)
+                      ? "restore"
+                      : "add"
+                }
                 key={outlet.id}
                 onAction={() => {
                   if (selectedCodeSet.has(outlet.storeCode)) {
                     handleRemoveOutlet(outlet.storeCode);
+                    return;
+                  }
+
+                  if (removedCodeSet.has(outlet.storeCode)) {
+                    handleRestoreOutlet(outlet.storeCode);
                     return;
                   }
 
