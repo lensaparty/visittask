@@ -6,8 +6,8 @@ import { getCurrentUser } from "@/lib/session";
 
 const optionalCoordinateSchema = z
   .object({
-    latitude: z.number(),
-    longitude: z.number(),
+    lat: z.number(),
+    lon: z.number(),
   })
   .partial();
 
@@ -49,20 +49,17 @@ export async function POST(request: Request) {
   const session = await prisma.dutySession.create({
     data: {
       userId: user.id,
-      startedLat: parsed.data.latitude ?? null,
-      startedLon: parsed.data.longitude ?? null,
+      startedLat: parsed.data.lat ?? null,
+      startedLon: parsed.data.lon ?? null,
     },
   });
 
-  if (
-    typeof parsed.data.latitude === "number" &&
-    typeof parsed.data.longitude === "number"
-  ) {
+  if (typeof parsed.data.lat === "number" && typeof parsed.data.lon === "number") {
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        lastKnownLat: parsed.data.latitude,
-        lastKnownLon: parsed.data.longitude,
+        lastKnownLat: parsed.data.lat,
+        lastKnownLon: parsed.data.lon,
         lastPingAt: new Date(),
       },
     });

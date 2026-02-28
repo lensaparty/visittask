@@ -38,7 +38,9 @@ export function LoginForm() {
             return;
           }
 
-          router.push(payload.role === "SUPERVISOR" ? "/supervisor" : "/tasks");
+          router.push(
+            payload.role === "SUPERVISOR" ? "/supervisor" : "/tasks/today",
+          );
           router.refresh();
         } catch (submitError) {
           setError(

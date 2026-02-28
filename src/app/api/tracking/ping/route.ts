@@ -5,9 +5,11 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 
 const pingSchema = z.object({
-  latitude: z.number(),
-  longitude: z.number(),
+  lat: z.number(),
+  lon: z.number(),
   accuracy: z.number().optional(),
+  speed: z.number().optional(),
+  timestamp: z.string().datetime({ offset: true }).optional(),
 });
 
 export async function POST(request: Request) {
@@ -31,7 +33,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const session = await prisma.dutySession.findFirst({
+  const activeSession = await prisma.dutySession.findFirst({
     where: {
       userId: user.id,
       endedAt: null,
@@ -41,30 +43,29 @@ export async function POST(request: Request) {
     },
   });
 
-  if (!session) {
-    return NextResponse.json(
-      { message: "Start duty before sending pings." },
-      { status: 409 },
-    );
-  }
+  const pingedAt = parsed.data.timestamp
+    ? new Date(parsed.data.timestamp)
+    : new Date();
 
   await prisma.$transaction([
     prisma.locationPing.create({
       data: {
         userId: user.id,
-        dutySessionId: session.id,
-        latitude: parsed.data.latitude,
-        longitude: parsed.data.longitude,
+        dutySessionId: activeSession?.id ?? null,
+        latitude: parsed.data.lat,
+        longitude: parsed.data.lon,
         accuracy: parsed.data.accuracy,
+        speed: parsed.data.speed,
+        pingedAt,
       },
     }),
     prisma.user.update({
       where: { id: user.id },
       data: {
-        lastKnownLat: parsed.data.latitude,
-        lastKnownLon: parsed.data.longitude,
+        lastKnownLat: parsed.data.lat,
+        lastKnownLon: parsed.data.lon,
         lastKnownAccuracy: parsed.data.accuracy ?? null,
-        lastPingAt: new Date(),
+        lastPingAt: pingedAt,
       },
     }),
   ]);

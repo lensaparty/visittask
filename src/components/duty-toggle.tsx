@@ -11,9 +11,11 @@ import {
 } from "react";
 
 type PingPayload = {
-  latitude: number;
-  longitude: number;
+  lat: number;
+  lon: number;
   accuracy?: number;
+  speed?: number | null;
+  timestamp?: string;
 };
 
 function stopBrowserTracking(
@@ -41,9 +43,15 @@ function getCurrentPosition(): Promise<PingPayload> {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         resolve({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
+          lat: position.coords.latitude,
+          lon: position.coords.longitude,
           accuracy: position.coords.accuracy,
+          speed:
+            typeof position.coords.speed === "number" &&
+            Number.isFinite(position.coords.speed)
+              ? position.coords.speed
+              : null,
+          timestamp: new Date(position.timestamp).toISOString(),
         });
       },
       (error) => reject(new Error(error.message)),
@@ -85,6 +93,7 @@ export function DutyToggle({
     typeof navigator !== "undefined" && "geolocation" in navigator;
   const [activeSessionId, setActiveSessionId] = useState(initialActiveSessionId);
   const [latestPosition, setLatestPosition] = useState<PingPayload | null>(null);
+  const [lastSentAt, setLastSentAt] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const watchIdRef = useRef<number | null>(null);
@@ -97,6 +106,7 @@ export function DutyToggle({
 
     try {
       await postJson("/api/tracking/ping", latestPosition);
+      setLastSentAt(new Date().toISOString());
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Tracking ping failed.");
     }
@@ -115,9 +125,15 @@ export function DutyToggle({
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         setLatestPosition({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
+          lat: position.coords.latitude,
+          lon: position.coords.longitude,
           accuracy: position.coords.accuracy,
+          speed:
+            typeof position.coords.speed === "number" &&
+            Number.isFinite(position.coords.speed)
+              ? position.coords.speed
+              : null,
+          timestamp: new Date(position.timestamp).toISOString(),
         });
       },
       (error) => {
@@ -151,6 +167,7 @@ export function DutyToggle({
           const payload = await postJson<{ sessionId: string }>("/api/tracking/duty/start", position);
           setActiveSessionId(payload.sessionId);
           await postJson("/api/tracking/ping", position);
+          setLastSentAt(new Date().toISOString());
           router.refresh();
         } catch (error) {
           setMessage(
@@ -171,6 +188,7 @@ export function DutyToggle({
           await postJson("/api/tracking/duty/stop", position ?? {});
           setActiveSessionId(null);
           setLatestPosition(null);
+          setLastSentAt(null);
           stopBrowserTracking(watchIdRef, intervalRef);
           router.refresh();
         } catch (error) {
@@ -203,6 +221,25 @@ export function DutyToggle({
       <p className="text-xs font-medium text-slate-500">
         {activeSessionId ? "Duty is ON. Pings sent every 45s." : "Duty is OFF."}
       </p>
+      {activeSessionId ? (
+        <div className="space-y-1 text-xs text-slate-500">
+          <p>
+            Last sent:{" "}
+            {lastSentAt
+              ? new Intl.DateTimeFormat("id-ID", {
+                  dateStyle: "short",
+                  timeStyle: "medium",
+                }).format(new Date(lastSentAt))
+              : "Not sent yet"}
+          </p>
+          <p>
+            Current accuracy:{" "}
+            {latestPosition?.accuracy != null
+              ? `${Math.round(latestPosition.accuracy)} m`
+              : "Unknown"}
+          </p>
+        </div>
+      ) : null}
       {message || !hasGeolocation ? (
         <p className="text-xs text-rose-600">
           {message ?? "Geolocation is not supported by this browser."}
