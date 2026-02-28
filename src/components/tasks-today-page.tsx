@@ -40,8 +40,8 @@ export async function TasksTodayPageContent() {
   );
 
   return (
-    <main className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
-      <section className="rounded-3xl border border-white/60 bg-white/90 p-6 shadow-lg shadow-slate-900/5">
+    <main className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+      <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
@@ -50,6 +50,9 @@ export async function TasksTodayPageContent() {
             <h2 className="text-2xl font-semibold text-slate-900">
               {tasks.length} scheduled outlet visit{tasks.length === 1 ? "" : "s"}
             </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Quick, mobile-friendly access to today&apos;s assigned outlet visits.
+            </p>
           </div>
           <DutyToggle initialActiveSessionId={activeSession?.id ?? null} />
         </div>
@@ -96,7 +99,7 @@ export async function TasksTodayPageContent() {
       </section>
 
       <aside className="space-y-6">
-        <section className="rounded-3xl border border-white/60 bg-white/90 p-6 shadow-lg shadow-slate-900/5">
+        <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
             Last Ping
           </p>
@@ -125,7 +128,7 @@ export async function TasksTodayPageContent() {
           )}
         </section>
 
-        <section className="rounded-3xl border border-white/60 bg-gradient-to-br from-cyan-500 to-blue-600 p-6 text-white shadow-lg shadow-cyan-900/20">
+        <section className="rounded-3xl border border-white/60 bg-gradient-to-br from-cyan-500 to-blue-600 p-5 text-white shadow-lg shadow-cyan-900/20 sm:p-6">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-100">
             Check-in Rule
           </p>

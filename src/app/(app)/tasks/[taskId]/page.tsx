@@ -1,4 +1,5 @@
 import { UserRole } from "@prisma/client";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TaskActions } from "@/components/task-actions";
 import { TaskMap } from "@/components/task-map";
@@ -33,9 +34,15 @@ export default async function TaskDetailPage({
   const canonicalStatus = toCanonicalTaskStatus(task.status);
 
   return (
-    <main className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-      <section className="rounded-3xl border border-white/60 bg-white/90 p-6 shadow-lg shadow-slate-900/5">
+    <main className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
         <div className="mb-5 space-y-2">
+          <Link
+            className="inline-flex rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 transition hover:border-cyan-300 hover:text-cyan-700"
+            href="/tasks/today"
+          >
+            Back to Tasks
+          </Link>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
             Outlet Detail
           </p>
@@ -52,8 +59,8 @@ export default async function TaskDetailPage({
         />
       </section>
 
-      <aside className="space-y-6">
-        <section className="rounded-3xl border border-white/60 bg-white/90 p-6 shadow-lg shadow-slate-900/5">
+      <aside className="space-y-6 xl:sticky xl:top-6 xl:self-start">
+        <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
             Visit Metadata
           </p>

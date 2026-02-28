@@ -53,7 +53,7 @@ export default async function SupervisorPage() {
   return (
     <main className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
       <section className="space-y-6">
-        <section className="rounded-3xl border border-white/60 bg-white/90 p-6 shadow-lg shadow-slate-900/5">
+        <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
           <div className="mb-5">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
               Live Field Force
@@ -61,6 +61,9 @@ export default async function SupervisorPage() {
             <h2 className="text-2xl font-semibold text-slate-900">
               Last location ping per user
             </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Live team visibility with a layout that stays readable on phones.
+            </p>
           </div>
 
           <div className="space-y-4">
@@ -98,7 +101,7 @@ export default async function SupervisorPage() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/60 bg-white/90 p-6 shadow-lg shadow-slate-900/5">
+        <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
           <div className="mb-5">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
               Today Summary
@@ -132,7 +135,7 @@ export default async function SupervisorPage() {
       <aside className="space-y-6">
         <SupervisorTools />
 
-        <section className="rounded-3xl border border-white/60 bg-white/90 p-6 shadow-lg shadow-slate-900/5">
+        <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
           <div className="mb-5">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
               Recent Tasks
