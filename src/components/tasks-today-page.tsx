@@ -1,16 +1,14 @@
-import { TaskStatus, UserRole } from "@prisma/client";
+import { UserRole } from "@prisma/client";
 import Link from "next/link";
 import { DutyToggle } from "@/components/duty-toggle";
 import { prisma } from "@/lib/prisma";
 import { scheduleDayLabel, startOfUtcDay } from "@/lib/schedule";
 import { requireUser } from "@/lib/session";
-
-const statusStyles: Record<TaskStatus, string> = {
-  [TaskStatus.PENDING]: "bg-amber-100 text-amber-800",
-  [TaskStatus.CHECKED_IN]: "bg-sky-100 text-sky-800",
-  [TaskStatus.COMPLETED]: "bg-emerald-100 text-emerald-800",
-  [TaskStatus.MISSED]: "bg-rose-100 text-rose-800",
-};
+import {
+  canonicalTaskStatusClasses,
+  canonicalTaskStatusLabel,
+  toCanonicalTaskStatus,
+} from "@/lib/task-status";
 
 export async function TasksTodayPageContent() {
   const user = await requireUser(UserRole.FIELD_FORCE);
@@ -62,33 +60,37 @@ export async function TasksTodayPageContent() {
               No tasks generated for today yet.
             </div>
           ) : (
-            tasks.map((task) => (
-              <Link
-                className="block rounded-2xl border border-slate-200 px-4 py-4 transition hover:border-cyan-300 hover:bg-cyan-50/60"
-                href={`/tasks/${task.id}`}
-                key={task.id}
-              >
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div className="space-y-1">
-                    <p className="text-lg font-semibold text-slate-900">
-                      {task.outlet.name}
-                    </p>
-                    <p className="text-sm text-slate-600">
-                      {task.outlet.storeCode} • {task.outlet.address}
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      {task.outlet.territory ?? "-"} •{" "}
-                      {scheduleDayLabel(task.scheduleDay)}
-                    </p>
+            tasks.map((task) => {
+              const canonicalStatus = toCanonicalTaskStatus(task.status);
+
+              return (
+                <Link
+                  className="block rounded-2xl border border-slate-200 px-4 py-4 transition hover:border-cyan-300 hover:bg-cyan-50/60"
+                  href={`/tasks/${task.id}`}
+                  key={task.id}
+                >
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div className="space-y-1">
+                      <p className="text-lg font-semibold text-slate-900">
+                        {task.outlet.name}
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        {task.outlet.storeCode} • {task.outlet.address}
+                      </p>
+                      <p className="text-sm text-slate-500">
+                        {task.outlet.territory ?? "-"} •{" "}
+                        {scheduleDayLabel(task.scheduleDay)}
+                      </p>
+                    </div>
+                    <span
+                      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${canonicalTaskStatusClasses(canonicalStatus)}`}
+                    >
+                      {canonicalTaskStatusLabel(canonicalStatus)}
+                    </span>
                   </div>
-                  <span
-                    className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusStyles[task.status]}`}
-                  >
-                    {task.status.replace("_", " ")}
-                  </span>
-                </div>
-              </Link>
-            ))
+                </Link>
+              );
+            })
           )}
         </div>
       </section>

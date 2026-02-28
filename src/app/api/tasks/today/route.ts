@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { startOfUtcDay } from "@/lib/schedule";
 import { getCurrentUser } from "@/lib/session";
+import { toCanonicalTaskStatus } from "@/lib/task-status";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -23,6 +24,7 @@ export async function GET() {
     },
     include: {
       outlet: true,
+      visit: true,
     },
     orderBy: {
       createdAt: "asc",
@@ -33,16 +35,16 @@ export async function GET() {
     date: today.toISOString().slice(0, 10),
     tasks: tasks.map((task) => ({
       id: task.id,
-      status: task.status,
+      status: toCanonicalTaskStatus(task.status),
       scheduledDate: task.scheduledDate.toISOString().slice(0, 10),
       visit: {
-        checkInAt: task.checkInAt,
-        checkInLat: task.checkInLat,
-        checkInLon: task.checkInLon,
-        checkInDistanceMeters: task.checkInDistanceMeters,
-        checkOutAt: task.checkOutAt,
-        checkOutLat: task.checkOutLat,
-        checkOutLon: task.checkOutLon,
+        checkInTime: task.visit?.checkInTime ?? null,
+        checkInLat: task.visit?.checkInLat ?? null,
+        checkInLon: task.visit?.checkInLon ?? null,
+        checkInDistanceM: task.visit?.checkInDistanceM ?? null,
+        checkOutTime: task.visit?.checkOutTime ?? null,
+        checkOutLat: task.visit?.checkOutLat ?? null,
+        checkOutLon: task.visit?.checkOutLon ?? null,
       },
       outlet: {
         id: task.outlet.id,

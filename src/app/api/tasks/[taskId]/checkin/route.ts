@@ -1,13 +1,13 @@
 import { UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { distanceInMeters } from "@/lib/geo";
+import { haversineDistanceMeters } from "@/lib/geo";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 
 const coordinateSchema = z.object({
-  latitude: z.number(),
-  longitude: z.number(),
+  lat: z.number(),
+  lon: z.number(),
 });
 
 export async function POST(
@@ -29,13 +29,12 @@ export async function POST(
 
   if (!parsed.success) {
     return NextResponse.json(
-      { message: "Coordinates are required." },
+      { message: "Current lat/lon is required." },
       { status: 400 },
     );
   }
 
   const { taskId } = await context.params;
-
   const task = await prisma.task.findFirst({
     where: {
       id: taskId,
@@ -43,6 +42,7 @@ export async function POST(
     },
     include: {
       outlet: true,
+      visit: true,
     },
   });
 
@@ -50,43 +50,68 @@ export async function POST(
     return NextResponse.json({ message: "Task not found." }, { status: 404 });
   }
 
-  if (task.checkInAt) {
+  if (task.status === "DONE") {
     return NextResponse.json(
-      { message: "Task is already checked in." },
+      { message: "This task is already completed." },
       { status: 409 },
     );
   }
 
-  const distance = distanceInMeters(
-    parsed.data.latitude,
-    parsed.data.longitude,
+  if (task.visit?.checkInTime) {
+    return NextResponse.json(
+      { message: "This task is already checked in." },
+      { status: 409 },
+    );
+  }
+
+  const distanceM = haversineDistanceMeters(
+    parsed.data.lat,
+    parsed.data.lon,
     task.outlet.latitude,
     task.outlet.longitude,
   );
 
-  if (distance > 100) {
+  if (distanceM > 100) {
     return NextResponse.json(
       {
-        message: "You must be within 100 meters to check in.",
-        distanceMeters: Math.round(distance),
+        message: "You are too far from the outlet to check in.",
+        distanceM: Math.round(distanceM),
       },
-      { status: 422 },
+      { status: 400 },
     );
   }
 
-  await prisma.task.update({
-    where: { id: task.id },
-    data: {
-      status: "CHECKED_IN",
-      checkInAt: new Date(),
-      checkInLat: parsed.data.latitude,
-      checkInLon: parsed.data.longitude,
-      checkInDistanceMeters: distance,
-    },
-  });
+  const now = new Date();
+
+  await prisma.$transaction([
+    prisma.visit.upsert({
+      where: {
+        taskId: task.id,
+      },
+      update: {
+        checkInTime: now,
+        checkInLat: parsed.data.lat,
+        checkInLon: parsed.data.lon,
+        checkInDistanceM: distanceM,
+      },
+      create: {
+        taskId: task.id,
+        checkInTime: now,
+        checkInLat: parsed.data.lat,
+        checkInLon: parsed.data.lon,
+        checkInDistanceM: distanceM,
+      },
+    }),
+    prisma.task.update({
+      where: { id: task.id },
+      data: {
+        status: "IN_PROGRESS",
+      },
+    }),
+  ]);
 
   return NextResponse.json({
     ok: true,
-    distanceMeters: Math.round(distance),
+    distanceM: Math.round(distanceM),
   });
 }

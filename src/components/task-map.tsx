@@ -48,10 +48,12 @@ export function TaskMap({
   outletLatitude,
   outletLongitude,
   outletName,
+  onUserPositionChange,
 }: {
   outletLatitude: number;
   outletLongitude: number;
   outletName: string;
+  onUserPositionChange?: ((position: Position | null) => void) | undefined;
 }) {
   const hasGeolocation =
     typeof navigator !== "undefined" && "geolocation" in navigator;
@@ -65,10 +67,13 @@ export function TaskMap({
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
-        setUserPosition({
+        const nextPosition = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
-        });
+        };
+
+        setUserPosition(nextPosition);
+        onUserPositionChange?.(nextPosition);
       },
       (watchError) => {
         setError(watchError.message);
@@ -82,8 +87,9 @@ export function TaskMap({
 
     return () => {
       navigator.geolocation.clearWatch(watchId);
+      onUserPositionChange?.(null);
     };
-  }, [hasGeolocation]);
+  }, [hasGeolocation, onUserPositionChange]);
 
   const displayError = error ?? (!hasGeolocation ? "Geolocation is not supported by this browser." : null);
 

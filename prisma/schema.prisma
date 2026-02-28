@@ -29,6 +29,8 @@ enum WeekParity {
 
 enum TaskStatus {
   PENDING
+  IN_PROGRESS
+  DONE
   CHECKED_IN
   COMPLETED
   MISSED
@@ -127,10 +129,29 @@ model Task {
   updatedAt             DateTime     @updatedAt
   outlet                Outlet       @relation(fields: [outletId], references: [id], onDelete: Cascade)
   user                  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  visit                 Visit?
 
   @@unique([outletId, userId, scheduledDate])
   @@index([userId, scheduledDate])
   @@index([scheduledDate, status])
+}
+
+model Visit {
+  id               String   @id @default(cuid())
+  taskId           String   @unique
+  checkInTime      DateTime?
+  checkInLat       Float?
+  checkInLon       Float?
+  checkInDistanceM Float?
+  checkOutTime     DateTime?
+  checkOutLat      Float?
+  checkOutLon      Float?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  task             Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([checkInTime])
+  @@index([checkOutTime])
 }
 
 model DutySession {

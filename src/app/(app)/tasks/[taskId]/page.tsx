@@ -5,6 +5,7 @@ import { TaskMap } from "@/components/task-map";
 import { prisma } from "@/lib/prisma";
 import { scheduleDayLabel } from "@/lib/schedule";
 import { requireUser } from "@/lib/session";
+import { canonicalTaskStatusLabel, toCanonicalTaskStatus } from "@/lib/task-status";
 
 export default async function TaskDetailPage({
   params,
@@ -21,12 +22,15 @@ export default async function TaskDetailPage({
     },
     include: {
       outlet: true,
+      visit: true,
     },
   });
 
   if (!task) {
     notFound();
   }
+
+  const canonicalStatus = toCanonicalTaskStatus(task.status);
 
   return (
     <main className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -72,27 +76,37 @@ export default async function TaskDetailPage({
             </div>
             <div className="flex items-center justify-between gap-4">
               <dt>Status</dt>
-              <dd className="font-medium text-slate-900">{task.status}</dd>
+              <dd className="font-medium text-slate-900">
+                {canonicalTaskStatusLabel(canonicalStatus)}
+              </dd>
             </div>
             <div className="flex items-center justify-between gap-4">
               <dt>Check-in</dt>
               <dd className="font-medium text-slate-900">
-                {task.checkInAt
+                {task.visit?.checkInTime
                   ? new Intl.DateTimeFormat("id-ID", {
                       dateStyle: "medium",
                       timeStyle: "short",
-                    }).format(task.checkInAt)
+                    }).format(task.visit.checkInTime)
+                  : "-"}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <dt>Check-in Distance</dt>
+              <dd className="font-medium text-slate-900">
+                {task.visit?.checkInDistanceM != null
+                  ? `${Math.round(task.visit.checkInDistanceM)} m`
                   : "-"}
               </dd>
             </div>
             <div className="flex items-center justify-between gap-4">
               <dt>Check-out</dt>
               <dd className="font-medium text-slate-900">
-                {task.checkOutAt
+                {task.visit?.checkOutTime
                   ? new Intl.DateTimeFormat("id-ID", {
                       dateStyle: "medium",
                       timeStyle: "short",
-                    }).format(task.checkOutAt)
+                    }).format(task.visit.checkOutTime)
                   : "-"}
               </dd>
             </div>
@@ -100,8 +114,14 @@ export default async function TaskDetailPage({
         </section>
 
         <TaskActions
-          canCheckIn={!task.checkInAt}
-          canCheckOut={Boolean(task.checkInAt && !task.checkOutAt)}
+          initialVisit={{
+            checkInTime: task.visit?.checkInTime ?? null,
+            checkOutTime: task.visit?.checkOutTime ?? null,
+            checkInDistanceM: task.visit?.checkInDistanceM ?? null,
+          }}
+          outletLatitude={task.outlet.latitude}
+          outletLongitude={task.outlet.longitude}
+          status={canonicalStatus}
           taskId={task.id}
         />
       </aside>

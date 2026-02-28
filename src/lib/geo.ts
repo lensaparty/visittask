@@ -21,3 +21,5 @@ export function distanceInMeters(
 
   return 2 * EARTH_RADIUS_METERS * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
+
+export const haversineDistanceMeters = distanceInMeters;

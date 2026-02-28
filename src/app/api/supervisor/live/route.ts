@@ -1,8 +1,9 @@
-import { TaskStatus, UserRole } from "@prisma/client";
+import { UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { startOfUtcDay } from "@/lib/schedule";
 import { getCurrentUser } from "@/lib/session";
+import { toCanonicalTaskStatus } from "@/lib/task-status";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -59,10 +60,10 @@ export async function GET() {
     users: fieldForceUsers.map((fieldForceUser) => {
       const latestPing = fieldForceUser.locationPings[0] ?? null;
       const doneCount = fieldForceUser.tasks.filter(
-        (task) => task.status === TaskStatus.COMPLETED,
+        (task) => toCanonicalTaskStatus(task.status) === "DONE",
       ).length;
       const pendingCount = fieldForceUser.tasks.filter(
-        (task) => task.status !== TaskStatus.COMPLETED,
+        (task) => toCanonicalTaskStatus(task.status) !== "DONE",
       ).length;
 
       return {

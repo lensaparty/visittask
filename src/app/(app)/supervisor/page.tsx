@@ -6,6 +6,8 @@ import { requireUser } from "@/lib/session";
 
 const summaryLabels: Record<TaskStatus, string> = {
   [TaskStatus.PENDING]: "Pending",
+  [TaskStatus.IN_PROGRESS]: "In Progress",
+  [TaskStatus.DONE]: "Done",
   [TaskStatus.CHECKED_IN]: "Checked In",
   [TaskStatus.COMPLETED]: "Completed",
   [TaskStatus.MISSED]: "Missed",
