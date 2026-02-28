@@ -2,7 +2,7 @@ import { UserRole } from "@prisma/client";
 import * as XLSX from "xlsx";
 import {
   coerceInteger,
-  ensureImportedUser,
+  findExistingUserByName,
   normalizeText,
   parseCoordinatePair,
   parseImportedScheduleCode,
@@ -260,19 +260,14 @@ export async function importOutletsFromWorkbook(file: File) {
     }
 
     try {
-      const supervisor = await ensureImportedUser({
+      const supervisor = await findExistingUserByName({
         name: parsed.data.supervisorName,
         role: UserRole.SUPERVISOR,
-        phone: parsed.data.noTelpSpv,
-        territory: parsed.data.territory,
-        territoryGroup: parsed.data.territoryGroup,
       });
 
-      const fieldForce = await ensureImportedUser({
+      const fieldForce = await findExistingUserByName({
         name: parsed.data.fieldForceNameRaw,
         role: UserRole.FIELD_FORCE,
-        territory: parsed.data.territory,
-        territoryGroup: parsed.data.territoryGroup,
       });
 
       const existingOutlet = await prisma.outlet.findUnique({

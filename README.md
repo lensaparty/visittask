@@ -91,8 +91,9 @@ Upload the workbook from the supervisor dashboard.
 
 - The first worksheet is used.
 - Missing `Kode Toko`, `Nama Toko`, `Alamat`, or invalid `Koordinat` rows are skipped.
-- Supervisor and field-force users are auto-created if they do not already exist.
-- Auto-created users get the default password from `DEFAULT_IMPORTED_USER_PASSWORD`.
+- Import does not auto-create users.
+- Supervisor and field-force columns only link to existing users when the names already match a user in the system.
+- If no matching user exists yet, the outlet is still imported but user relations stay empty until admin creates the user manually and assigns outlets.
 
 ## Task Generation
 

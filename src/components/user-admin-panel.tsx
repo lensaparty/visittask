@@ -26,6 +26,15 @@ type DraftByUserId = Record<
 >;
 
 type PasswordDraftByUserId = Record<string, string>;
+type CreateUserDraft = {
+  name: string;
+  email: string;
+  role: UserRole;
+  password: string;
+  phone: string;
+  territory: string;
+  territoryGroup: string;
+};
 
 function buildDraft(user: EditableUser) {
   return {
@@ -51,6 +60,16 @@ export function UserAdminPanel({
   const [feedback, setFeedback] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<"ALL" | UserRole>("ALL");
+  const [createDraft, setCreateDraft] = useState<CreateUserDraft>({
+    name: "",
+    email: "",
+    role: UserRole.FIELD_FORCE,
+    password: "",
+    phone: "",
+    territory: "",
+    territoryGroup: "",
+  });
+  const [createFeedback, setCreateFeedback] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
@@ -108,6 +127,16 @@ export function UserAdminPanel({
     setPasswordDrafts((current) => ({
       ...current,
       [userId]: value,
+    }));
+  }
+
+  function updateCreateDraft(
+    field: keyof CreateUserDraft,
+    value: string,
+  ) {
+    setCreateDraft((current) => ({
+      ...current,
+      [field]: value,
     }));
   }
 
@@ -259,6 +288,62 @@ export function UserAdminPanel({
     });
   }
 
+  function handleCreateUser() {
+    setCreateFeedback(null);
+
+    startTransition(() => {
+      void (async () => {
+        try {
+          const response = await fetch("/api/admin/users", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(createDraft),
+          });
+          const payload = (await response.json().catch(() => ({}))) as {
+            message?: string;
+            user?: EditableUser;
+            usedDefaultPassword?: boolean;
+          };
+
+          if (!response.ok || !payload.user) {
+            setCreateFeedback(payload.message ?? "Failed to create user.");
+            return;
+          }
+
+          setUsers((current) =>
+            [...current, payload.user!].sort((left, right) =>
+              `${left.role}-${left.name}`.localeCompare(`${right.role}-${right.name}`),
+            ),
+          );
+          setDrafts((current) => ({
+            ...current,
+            [payload.user!.id]: buildDraft(payload.user!),
+          }));
+          setCreateDraft({
+            name: "",
+            email: "",
+            role: UserRole.FIELD_FORCE,
+            password: "",
+            phone: "",
+            territory: "",
+            territoryGroup: "",
+          });
+          setCreateFeedback(
+            payload.usedDefaultPassword
+              ? "User created with default imported password."
+              : "User created.",
+          );
+        } catch (error) {
+          setCreateFeedback(
+            error instanceof Error ? error.message : "Failed to create user.",
+          );
+        }
+      })();
+    });
+  }
+
   return (
     <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
       <div className="mb-5 flex flex-col gap-2">
@@ -272,6 +357,100 @@ export function UserAdminPanel({
           Update profile data directly, or remove users permanently if they are
           no longer needed.
         </p>
+      </div>
+
+      <div className="mb-5 rounded-2xl bg-slate-50 p-4 sm:p-5">
+        <div className="mb-4">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-700">
+            Create User
+          </p>
+          <p className="mt-1 text-sm text-slate-600">
+            User tidak dibuat otomatis saat import outlet. Tambahkan manual dari sini.
+          </p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <label className="space-y-2 text-sm font-medium text-slate-700">
+            <span>Name</span>
+            <input
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => updateCreateDraft("name", event.target.value)}
+              value={createDraft.name}
+            />
+          </label>
+          <label className="space-y-2 text-sm font-medium text-slate-700">
+            <span>Email</span>
+            <input
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => updateCreateDraft("email", event.target.value)}
+              value={createDraft.email}
+            />
+          </label>
+          <label className="space-y-2 text-sm font-medium text-slate-700">
+            <span>Role</span>
+            <select
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => updateCreateDraft("role", event.target.value)}
+              value={createDraft.role}
+            >
+              <option value={UserRole.FIELD_FORCE}>FIELD_FORCE</option>
+              <option value={UserRole.SUPERVISOR}>SUPERVISOR</option>
+            </select>
+          </label>
+          <label className="space-y-2 text-sm font-medium text-slate-700">
+            <span>Password</span>
+            <input
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => updateCreateDraft("password", event.target.value)}
+              placeholder="Kosongkan untuk pakai default"
+              type="password"
+              value={createDraft.password}
+            />
+          </label>
+          <label className="space-y-2 text-sm font-medium text-slate-700">
+            <span>Phone</span>
+            <input
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => updateCreateDraft("phone", event.target.value)}
+              value={createDraft.phone}
+            />
+          </label>
+          <label className="space-y-2 text-sm font-medium text-slate-700">
+            <span>Territory</span>
+            <input
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) =>
+                updateCreateDraft("territory", event.target.value)
+              }
+              value={createDraft.territory}
+            />
+          </label>
+          <label className="space-y-2 text-sm font-medium text-slate-700 md:col-span-2 xl:col-span-1">
+            <span>Territory Group</span>
+            <input
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) =>
+                updateCreateDraft("territoryGroup", event.target.value)
+              }
+              value={createDraft.territoryGroup}
+            />
+          </label>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-slate-500">
+            {createFeedback ||
+              "Create user manually, lalu assignment outlet dilakukan terpisah."}
+          </p>
+          <button
+            className="rounded-full bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-70"
+            disabled={isPending}
+            onClick={handleCreateUser}
+            type="button"
+          >
+            Create User
+          </button>
+        </div>
       </div>
 
       <div className="mb-5 grid gap-3 sm:grid-cols-[1fr_220px]">
