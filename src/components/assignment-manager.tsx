@@ -64,6 +64,11 @@ type AssignmentListResponse = {
   message?: string;
 };
 
+type AssignmentDeleteResult = {
+  deletedCount: number;
+  message?: string;
+};
+
 function parseOutletCodes(value: string) {
   const uniqueCodes = new Set<string>();
 
@@ -230,6 +235,8 @@ export function AssignmentManager({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isDeletePending, startDeleteTransition] = useTransition();
+  const [showInactiveHistory, setShowInactiveHistory] = useState(false);
   const deferredOutletQuery = useDeferredValue(outletQuery);
 
   const selectedUser = users.find((candidate) => candidate.id === selectedUserId) ?? null;
@@ -263,6 +270,7 @@ export function AssignmentManager({
         return buildOutletSearchText(outlet).includes(normalizedRemovedQuery);
       })
     : removedCodes;
+  const visibleAssignments = showInactiveHistory ? assignments : activeAssignments;
 
   function hydrateDraftFromAssignments(nextAssignments: AssignmentView[]) {
     const activeCodes = nextAssignments
@@ -411,6 +419,49 @@ export function AssignmentManager({
     setSubmitError(null);
   }
 
+  function handleDeleteInactive(assignmentId?: string) {
+    if (!selectedUser) {
+      setLoadError("Pilih user field force dulu.");
+      return;
+    }
+
+    startDeleteTransition(() => {
+      void (async () => {
+        try {
+          setLoadError(null);
+
+          const query = new URLSearchParams({
+            userId: selectedUser.id,
+          });
+
+          if (assignmentId) {
+            query.set("assignmentId", assignmentId);
+          } else {
+            query.set("inactiveOnly", "true");
+          }
+
+          const response = await fetch(`/api/admin/assignments?${query.toString()}`, {
+            method: "DELETE",
+          });
+          const payload = (await response.json().catch(() => ({}))) as AssignmentDeleteResult;
+
+          if (!response.ok) {
+            setLoadError(payload.message ?? "Unable to delete inactive assignments.");
+            return;
+          }
+
+          await loadAssignmentsForUser(selectedUser.id);
+        } catch (error) {
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : "Unable to delete inactive assignments.",
+          );
+        }
+      })();
+    });
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitResult(null);
@@ -476,6 +527,7 @@ export function AssignmentManager({
                   setTextareaValue("");
                   setRemovedCodes([]);
                   setRemovedQuery("");
+                  setShowInactiveHistory(false);
                   setSubmitResult(null);
                 }}
                 value={selectedUserId}
@@ -758,9 +810,43 @@ export function AssignmentManager({
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
             Current Assignments
           </p>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-900">
-            Outlet aktif untuk user terpilih
-          </h2>
+          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-2xl font-semibold text-slate-900">
+              Outlet aktif untuk user terpilih
+            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                className={`rounded-2xl border px-3 py-2 text-sm font-semibold transition ${
+                  showInactiveHistory
+                    ? "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    : "border-cyan-200 bg-cyan-50 text-cyan-800 hover:border-cyan-300"
+                }`}
+                onClick={() => setShowInactiveHistory(false)}
+                type="button"
+              >
+                Active Only
+              </button>
+              <button
+                className={`rounded-2xl border px-3 py-2 text-sm font-semibold transition ${
+                  showInactiveHistory
+                    ? "border-cyan-200 bg-cyan-50 text-cyan-800 hover:border-cyan-300"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                }`}
+                onClick={() => setShowInactiveHistory(true)}
+                type="button"
+              >
+                Show Inactive History
+              </button>
+              <button
+                className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 transition hover:border-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isDeletePending || assignments.every((assignment) => assignment.active)}
+                onClick={() => handleDeleteInactive()}
+                type="button"
+              >
+                {isDeletePending ? "Deleting..." : "Delete All Inactive"}
+              </button>
+            </div>
+          </div>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             Gunakan tombol di bawah untuk batalkan outlet aktif atau restore lagi sebelum menekan save.
           </p>
@@ -772,42 +858,68 @@ export function AssignmentManager({
           ) : null}
 
           <div className="mt-5 space-y-4">
-            {activeAssignments.length === 0 ? (
+            {visibleAssignments.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
-                No assignments for this user.
+                {showInactiveHistory
+                  ? "Belum ada assignment untuk user ini."
+                  : "Tidak ada assignment aktif untuk user ini."}
               </p>
             ) : (
-              activeAssignments.map((assignment) => (
+              visibleAssignments.map((assignment) => (
                 <div key={assignment.id}>
                   <div className="mb-2 flex items-center justify-between px-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                     <span>
-                      {selectedCodeSet.has(assignment.kodeToko)
-                        ? "Staged Active"
-                        : removedCodeSet.has(assignment.kodeToko)
-                          ? "Pending Removal"
-                          : "Active"}
+                      {assignment.active
+                        ? selectedCodeSet.has(assignment.kodeToko)
+                          ? "Staged Active"
+                          : removedCodeSet.has(assignment.kodeToko)
+                            ? "Pending Removal"
+                            : "Active"
+                        : selectedCodeSet.has(assignment.kodeToko)
+                          ? "Pending Reactivation"
+                          : "Inactive History"}
                     </span>
                     <span>
                       {formatCoordinate(assignment.lat)}, {formatCoordinate(assignment.lon)}
                     </span>
                   </div>
-                  <OutletDetailCard
-                    actionLabel={
-                      selectedCodeSet.has(assignment.kodeToko) ? "Batalkan" : "Restore"
-                    }
-                    actionVariant={
-                      selectedCodeSet.has(assignment.kodeToko) ? "remove" : "restore"
-                    }
-                    onAction={() => {
-                      if (selectedCodeSet.has(assignment.kodeToko)) {
-                        handleRemoveOutlet(assignment.kodeToko);
-                        return;
+                  <div className="space-y-3">
+                    <OutletDetailCard
+                      actionLabel={
+                        assignment.active
+                          ? selectedCodeSet.has(assignment.kodeToko)
+                            ? "Batalkan"
+                            : "Restore"
+                          : selectedCodeSet.has(assignment.kodeToko)
+                            ? "Batalkan"
+                            : "Restore"
                       }
+                      actionVariant={
+                        selectedCodeSet.has(assignment.kodeToko) ? "remove" : "restore"
+                      }
+                      onAction={() => {
+                        if (selectedCodeSet.has(assignment.kodeToko)) {
+                          handleRemoveOutlet(assignment.kodeToko);
+                          return;
+                        }
 
-                      handleRestoreOutlet(assignment.kodeToko);
-                    }}
-                    outlet={assignment}
-                  />
+                        handleRestoreOutlet(assignment.kodeToko);
+                      }}
+                      outlet={assignment}
+                    />
+                    {!assignment.active ? (
+                      <div className="flex justify-end">
+                        <button
+                          className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 transition hover:border-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={isDeletePending}
+                          onClick={() => handleDeleteInactive(assignment.id)}
+                          type="button"
+                        >
+                          {isDeletePending ? "Deleting..." : "Delete Permanently"}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               ))
             )}

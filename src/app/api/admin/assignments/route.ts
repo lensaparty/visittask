@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 
-export async function GET(request: Request) {
+async function requireSupervisor() {
   const adminUser = await getCurrentUser();
 
   if (!adminUser) {
@@ -12,6 +12,16 @@ export async function GET(request: Request) {
 
   if (adminUser.role !== UserRole.SUPERVISOR) {
     return NextResponse.json({ message: "Forbidden." }, { status: 403 });
+  }
+
+  return null;
+}
+
+export async function GET(request: Request) {
+  const authError = await requireSupervisor();
+
+  if (authError) {
+    return authError;
   }
 
   const { searchParams } = new URL(request.url);
@@ -117,5 +127,86 @@ export async function GET(request: Request) {
       lat: assignment.outlet.latitude,
       lon: assignment.outlet.longitude,
     })),
+  });
+}
+
+export async function DELETE(request: Request) {
+  const authError = await requireSupervisor();
+
+  if (authError) {
+    return authError;
+  }
+
+  const { searchParams } = new URL(request.url);
+  const userId = searchParams.get("userId")?.trim();
+  const assignmentId = searchParams.get("assignmentId")?.trim();
+  const inactiveOnly = searchParams.get("inactiveOnly") === "true";
+
+  if (!userId) {
+    return NextResponse.json(
+      { message: "Query parameter `userId` is required." },
+      { status: 400 },
+    );
+  }
+
+  if (!assignmentId && !inactiveOnly) {
+    return NextResponse.json(
+      { message: "Provide `assignmentId` or set `inactiveOnly=true`." },
+      { status: 400 },
+    );
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+
+  if (!user) {
+    return NextResponse.json({ message: "User not found." }, { status: 404 });
+  }
+
+  if (assignmentId) {
+    const assignment = await prisma.assignment.findFirst({
+      where: {
+        id: assignmentId,
+        userId,
+      },
+      select: {
+        id: true,
+        active: true,
+      },
+    });
+
+    if (!assignment) {
+      return NextResponse.json({ message: "Assignment not found." }, { status: 404 });
+    }
+
+    if (assignment.active) {
+      return NextResponse.json(
+        { message: "Only inactive assignments can be deleted permanently." },
+        { status: 400 },
+      );
+    }
+
+    await prisma.assignment.delete({
+      where: {
+        id: assignment.id,
+      },
+    });
+
+    return NextResponse.json({
+      deletedCount: 1,
+    });
+  }
+
+  const result = await prisma.assignment.deleteMany({
+    where: {
+      userId,
+      active: false,
+    },
+  });
+
+  return NextResponse.json({
+    deletedCount: result.count,
   });
 }
