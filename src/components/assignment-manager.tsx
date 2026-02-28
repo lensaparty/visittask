@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState, useTransition } from "react";
+import { FormEvent, useDeferredValue, useEffect, useState, useTransition } from "react";
 
 type AssignableUser = {
   id: string;
@@ -8,11 +8,44 @@ type AssignableUser = {
   email: string;
 };
 
+type OutletView = {
+  id: string;
+  storeCode: string;
+  name: string;
+  address: string;
+  subdistrict: string | null;
+  regency: string | null;
+  district: string | null;
+  territory: string | null;
+  territoryGroup: string | null;
+  supervisorName: string | null;
+  supervisorPhone: string | null;
+  typeOutlet: string | null;
+  visualPposm: string | null;
+  brand: string | null;
+  size: string | null;
+  latitude: number;
+  longitude: number;
+};
+
 type AssignmentView = {
   id: string;
   kodeToko: string;
   namaToko: string;
+  alamat: string;
+  kecamatan: string | null;
+  kabupaten: string | null;
+  district: string | null;
   territory: string | null;
+  territoryGroup: string | null;
+  supervisorName: string | null;
+  noTelpSpv: string | null;
+  typeOutlet: string | null;
+  visualPposm: string | null;
+  brand: string | null;
+  ukuran: string | null;
+  lat: number;
+  lon: number;
   active: boolean;
 };
 
@@ -29,18 +62,206 @@ type AssignmentListResponse = {
   message?: string;
 };
 
+function parseOutletCodes(value: string) {
+  const uniqueCodes = new Set<string>();
+
+  for (const line of value.split("\n")) {
+    const code = line.trim();
+
+    if (code) {
+      uniqueCodes.add(code);
+    }
+  }
+
+  return [...uniqueCodes];
+}
+
+function formatCoordinate(value: number) {
+  return value.toFixed(6);
+}
+
+function buildOutletSearchText(outlet: OutletView) {
+  return [
+    outlet.storeCode,
+    outlet.name,
+    outlet.address,
+    outlet.subdistrict ?? "",
+    outlet.regency ?? "",
+    outlet.district ?? "",
+    outlet.territory ?? "",
+    outlet.territoryGroup ?? "",
+    outlet.supervisorName ?? "",
+    outlet.supervisorPhone ?? "",
+    outlet.typeOutlet ?? "",
+    outlet.visualPposm ?? "",
+    outlet.brand ?? "",
+    outlet.size ?? "",
+    formatCoordinate(outlet.latitude),
+    formatCoordinate(outlet.longitude),
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+function OutletDetailCard({
+  actionLabel,
+  actionVariant,
+  onAction,
+  outlet,
+}: {
+  actionLabel?: string;
+  actionVariant?: "add" | "remove";
+  onAction?: () => void;
+  outlet: {
+    kodeToko: string;
+    namaToko: string;
+    alamat: string;
+    kecamatan: string | null;
+    kabupaten: string | null;
+    district: string | null;
+    territory: string | null;
+    territoryGroup: string | null;
+    supervisorName: string | null;
+    noTelpSpv: string | null;
+    typeOutlet: string | null;
+    visualPposm: string | null;
+    brand: string | null;
+    ukuran: string | null;
+    lat: number;
+    lon: number;
+  };
+}) {
+  const actionClassName =
+    actionVariant === "remove"
+      ? "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300"
+      : "border-cyan-200 bg-cyan-50 text-cyan-800 hover:border-cyan-300";
+
+  return (
+    <article className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm shadow-slate-900/5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">
+            {outlet.kodeToko}
+          </p>
+          <h3 className="mt-1 text-base font-semibold text-slate-900">
+            {outlet.namaToko}
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600">{outlet.alamat}</p>
+        </div>
+        {onAction && actionLabel ? (
+          <button
+            className={`rounded-2xl border px-3 py-2 text-sm font-semibold transition ${actionClassName}`}
+            onClick={onAction}
+            type="button"
+          >
+            {actionLabel}
+          </button>
+        ) : null}
+      </div>
+
+      <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+        <div className="rounded-2xl bg-slate-50 px-3 py-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            Area
+          </p>
+          <p className="mt-1 text-slate-700">
+            {outlet.kecamatan ?? "-"} / {outlet.kabupaten ?? "-"}
+          </p>
+          <p className="mt-1 text-slate-600">Distrik: {outlet.district ?? "-"}</p>
+        </div>
+        <div className="rounded-2xl bg-slate-50 px-3 py-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            Territory
+          </p>
+          <p className="mt-1 text-slate-700">{outlet.territory ?? "-"}</p>
+          <p className="mt-1 text-slate-600">Group: {outlet.territoryGroup ?? "-"}</p>
+        </div>
+        <div className="rounded-2xl bg-slate-50 px-3 py-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            Supervisor
+          </p>
+          <p className="mt-1 text-slate-700">{outlet.supervisorName ?? "-"}</p>
+          <p className="mt-1 text-slate-600">Telp: {outlet.noTelpSpv ?? "-"}</p>
+        </div>
+        <div className="rounded-2xl bg-slate-50 px-3 py-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            Outlet Detail
+          </p>
+          <p className="mt-1 text-slate-700">Type: {outlet.typeOutlet ?? "-"}</p>
+          <p className="mt-1 text-slate-600">
+            Visual: {outlet.visualPposm ?? "-"} • {outlet.brand ?? "-"} • {outlet.ukuran ?? "-"}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl bg-slate-900 px-3 py-3 text-sm text-slate-100">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-300">
+          Koordinat
+        </p>
+        <p className="mt-1">
+          {formatCoordinate(outlet.lat)}, {formatCoordinate(outlet.lon)}
+        </p>
+        <p className="mt-1 text-xs text-slate-300">
+          Urutan alamat dan koordinat ini memudahkan plotting rute dan sinkron ke peta field force.
+        </p>
+      </div>
+    </article>
+  );
+}
+
 export function AssignmentManager({
+  outlets,
   users,
 }: {
+  outlets: OutletView[];
   users: AssignableUser[];
 }) {
   const [selectedUserId, setSelectedUserId] = useState(users[0]?.id ?? "");
   const [textareaValue, setTextareaValue] = useState("");
+  const [outletQuery, setOutletQuery] = useState("");
   const [assignments, setAssignments] = useState<AssignmentView[]>([]);
   const [submitResult, setSubmitResult] = useState<BulkAssignmentResult | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const deferredOutletQuery = useDeferredValue(outletQuery);
+
+  const selectedUser = users.find((candidate) => candidate.id === selectedUserId) ?? null;
+  const selectedCodes = parseOutletCodes(textareaValue);
+  const selectedCodeSet = new Set(selectedCodes);
+  const outletByCode = new Map(outlets.map((outlet) => [outlet.storeCode, outlet]));
+
+  const selectedOutlets = selectedCodes
+    .map((code) => outletByCode.get(code))
+    .filter((outlet): outlet is OutletView => Boolean(outlet));
+
+  const normalizedQuery = deferredOutletQuery.trim().toLowerCase();
+  const searchedOutlets = normalizedQuery
+    ? outlets.filter((outlet) => buildOutletSearchText(outlet).includes(normalizedQuery))
+    : outlets;
+  const visibleOutlets = normalizedQuery ? searchedOutlets.slice(0, 80) : searchedOutlets.slice(0, 36);
+
+  async function loadAssignmentsForUser(userId: string) {
+    setLoadError(null);
+
+    try {
+      const response = await fetch(
+        `/api/admin/assignments?userId=${encodeURIComponent(userId)}`,
+      );
+      const payload = (await response.json().catch(() => ({}))) as AssignmentListResponse;
+
+      if (!response.ok) {
+        setAssignments([]);
+        setLoadError(payload.message ?? "Unable to load assignments.");
+        return;
+      }
+
+      setAssignments(payload.assignments ?? []);
+    } catch (error) {
+      setAssignments([]);
+      setLoadError(error instanceof Error ? error.message : "Unable to load assignments.");
+    }
+  }
 
   useEffect(() => {
     if (!selectedUserId) {
@@ -50,31 +271,28 @@ export function AssignmentManager({
     let cancelled = false;
 
     void (async () => {
-      setLoadError(null);
-
       try {
         const response = await fetch(
           `/api/admin/assignments?userId=${encodeURIComponent(selectedUserId)}`,
         );
         const payload = (await response.json().catch(() => ({}))) as AssignmentListResponse;
 
-        if (!response.ok) {
-          if (!cancelled) {
-            setAssignments([]);
-            setLoadError(payload.message ?? "Unable to load assignments.");
-          }
+        if (cancelled) {
           return;
         }
 
-        if (!cancelled) {
-          setAssignments(payload.assignments ?? []);
+        if (!response.ok) {
+          setAssignments([]);
+          setLoadError(payload.message ?? "Unable to load assignments.");
+          return;
         }
+
+        setLoadError(null);
+        setAssignments(payload.assignments ?? []);
       } catch (error) {
         if (!cancelled) {
           setAssignments([]);
-          setLoadError(
-            error instanceof Error ? error.message : "Unable to load assignments.",
-          );
+          setLoadError(error instanceof Error ? error.message : "Unable to load assignments.");
         }
       }
     })();
@@ -84,25 +302,36 @@ export function AssignmentManager({
     };
   }, [selectedUserId]);
 
+  function handleAddOutlet(code: string) {
+    if (selectedCodeSet.has(code)) {
+      return;
+    }
+
+    const nextCodes = [...selectedCodes, code];
+    setTextareaValue(nextCodes.join("\n"));
+    setSubmitResult(null);
+    setSubmitError(null);
+  }
+
+  function handleRemoveOutlet(code: string) {
+    const nextCodes = selectedCodes.filter((selectedCode) => selectedCode !== code);
+    setTextareaValue(nextCodes.join("\n"));
+    setSubmitResult(null);
+    setSubmitError(null);
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitResult(null);
     setSubmitError(null);
 
-    const user = users.find((candidate) => candidate.id === selectedUserId);
-
-    if (!user) {
-      setSubmitError("Select a user first.");
+    if (!selectedUser) {
+      setSubmitError("Pilih user field force dulu.");
       return;
     }
 
-    const outletCodes = textareaValue
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-
-    if (outletCodes.length === 0) {
-      setSubmitError("Enter at least one outlet code.");
+    if (selectedCodes.length === 0) {
+      setSubmitError("Tambahkan minimal satu kode toko.");
       return;
     }
 
@@ -115,8 +344,8 @@ export function AssignmentManager({
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              userEmail: user.email,
-              outletCodes,
+              userEmail: selectedUser.email,
+              outletCodes: selectedCodes,
             }),
           });
           const payload = (await response.json().catch(() => ({}))) as BulkAssignmentResult;
@@ -128,136 +357,294 @@ export function AssignmentManager({
 
           setSubmitResult(payload);
           setTextareaValue("");
-          setLoadError(null);
-
-          const assignmentResponse = await fetch(
-            `/api/admin/assignments?userId=${encodeURIComponent(user.id)}`,
-          );
-          const assignmentPayload = (await assignmentResponse.json().catch(() => ({}))) as AssignmentListResponse;
-
-          if (!assignmentResponse.ok) {
-            setLoadError(
-              assignmentPayload.message ?? "Assignments saved, but reload failed.",
-            );
-            return;
-          }
-
-          setAssignments(assignmentPayload.assignments ?? []);
+          await loadAssignmentsForUser(selectedUser.id);
         } catch (error) {
-          setSubmitError(
-            error instanceof Error ? error.message : "Unable to save assignments.",
-          );
+          setSubmitError(error instanceof Error ? error.message : "Unable to save assignments.");
         }
       })();
     });
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-      <section className="rounded-3xl border border-white/60 bg-white/90 p-6 shadow-lg shadow-slate-900/5">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
-          Bulk Assignment
-        </p>
-        <h2 className="mt-2 text-2xl font-semibold text-slate-900">
-          Assign outlet codes to a user
-        </h2>
-
-        <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
-          <label className="block space-y-2 text-sm font-medium text-slate-700">
-            <span>User</span>
-            <select
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-              onChange={(event) => {
-                setSelectedUserId(event.target.value);
-                setAssignments([]);
-                setLoadError(null);
-                setSubmitResult(null);
-              }}
-              value={selectedUserId}
-            >
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name} ({user.email})
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block space-y-2 text-sm font-medium text-slate-700">
-            <span>Outlet Codes</span>
-            <textarea
-              className="min-h-52 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-              onChange={(event) => setTextareaValue(event.target.value)}
-              placeholder={"TOKO-001\nTOKO-002\nTOKO-003"}
-              value={textareaValue}
-            />
-          </label>
-
-          <button
-            className="w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
-            disabled={isPending || users.length === 0}
-            type="submit"
-          >
-            {isPending ? "Saving..." : "Assign Outlets"}
-          </button>
-        </form>
-
-        {submitError ? (
-          <p className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {submitError}
+    <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+      <div className="space-y-6">
+        <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
+            Bulk Assignment
           </p>
-        ) : null}
-
-        {submitResult ? (
-          <div className="mt-4 space-y-3 rounded-2xl bg-slate-100 px-4 py-4 text-sm text-slate-700">
-            <p>
-              Assigned {submitResult.assignedCount} of {submitResult.requestedCount} requested codes to{" "}
-              {submitResult.user.name}.
-            </p>
-            {submitResult.missingOutletCodes.length > 0 ? (
-              <p className="text-slate-600">
-                Missing codes: {submitResult.missingOutletCodes.join(", ")}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-      </section>
-
-      <section className="rounded-3xl border border-white/60 bg-white/90 p-6 shadow-lg shadow-slate-900/5">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
-          Assignments
-        </p>
-        <h2 className="mt-2 text-2xl font-semibold text-slate-900">
-          Current outlets for selected user
-        </h2>
-
-        {loadError ? (
-          <p className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {loadError}
+          <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+            Susun assignment per field force
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Pilih user, telusuri outlet berdasarkan alamat, lalu tambahkan kode toko ke daftar assign.
           </p>
-        ) : null}
 
-        <div className="mt-5 space-y-3">
-          {assignments.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
-              No assignments for this user.
-            </p>
-          ) : (
-            assignments.map((assignment) => (
-              <div
-                className="rounded-2xl border border-slate-200 px-4 py-4"
-                key={assignment.id}
+          <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
+            <label className="block space-y-2 text-sm font-medium text-slate-700">
+              <span>User Field Force</span>
+              <select
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+                onChange={(event) => {
+                  setSelectedUserId(event.target.value);
+                  setAssignments([]);
+                  setLoadError(null);
+                  setSubmitResult(null);
+                }}
+                value={selectedUserId}
               >
-                <p className="font-semibold text-slate-900">{assignment.kodeToko}</p>
-                <p className="text-sm text-slate-600">{assignment.namaToko}</p>
-                <p className="text-sm text-slate-500">
-                  {assignment.territory ?? "No territory"} •{" "}
-                  {assignment.active ? "Active" : "Inactive"}
+                {users.length === 0 ? (
+                  <option value="">Belum ada user field force</option>
+                ) : null}
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name} ({user.email})
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  User Aktif
+                </p>
+                <p className="mt-1 font-medium text-slate-900">
+                  {selectedUser?.name ?? "-"}
                 </p>
               </div>
+              <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Kode Dipilih
+                </p>
+                <p className="mt-1 font-medium text-slate-900">{selectedCodes.length}</p>
+              </div>
+              <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Outlet Tampil
+                </p>
+                <p className="mt-1 font-medium text-slate-900">
+                  {visibleOutlets.length} / {searchedOutlets.length}
+                </p>
+              </div>
+            </div>
+
+            <label className="block space-y-2 text-sm font-medium text-slate-700">
+              <span>Cari Outlet</span>
+              <input
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+                onChange={(event) => setOutletQuery(event.target.value)}
+                placeholder="Cari kode toko, nama, alamat, kecamatan, territory, supervisor, koordinat"
+                value={outletQuery}
+              />
+            </label>
+
+            <label className="block space-y-2 text-sm font-medium text-slate-700">
+              <span>Kode Toko Terpilih</span>
+              <textarea
+                className="min-h-40 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+                onChange={(event) => setTextareaValue(event.target.value)}
+                placeholder={"TOKO-001\nTOKO-002\nTOKO-003"}
+                value={textareaValue}
+              />
+              <span className="block text-xs font-normal leading-5 text-slate-500">
+                Kode tetap bisa dipaste manual. Klik tombol Add di katalog outlet untuk memasukkan kode otomatis.
+              </span>
+            </label>
+
+            <button
+              className="w-full rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70"
+              disabled={isPending || users.length === 0}
+              type="submit"
+            >
+              {isPending ? "Saving..." : "Assign Outlets"}
+            </button>
+          </form>
+
+          {submitError ? (
+            <p className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {submitError}
+            </p>
+          ) : null}
+
+          {submitResult ? (
+            <div className="mt-4 space-y-3 rounded-2xl bg-slate-100 px-4 py-4 text-sm text-slate-700">
+              <p>
+                Assigned {submitResult.assignedCount} of {submitResult.requestedCount} requested codes to{" "}
+                {submitResult.user.name}.
+              </p>
+              {submitResult.missingOutletCodes.length > 0 ? (
+                <p className="text-slate-600">
+                  Missing codes: {submitResult.missingOutletCodes.join(", ")}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
+
+        <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
+                Selected Queue
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+                Kode siap di-assign
+              </h2>
+            </div>
+            <p className="text-sm text-slate-500">{selectedOutlets.length} outlet terdeteksi</p>
+          </div>
+
+          <div className="mt-5 space-y-4">
+            {selectedCodes.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
+                Belum ada kode toko dipilih.
+              </p>
+            ) : (
+              selectedCodes.map((code) => {
+                const outlet = outletByCode.get(code);
+
+                if (!outlet) {
+                  return (
+                    <div
+                      className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-700"
+                      key={code}
+                    >
+                      {code} tidak ditemukan di master outlet. Kode ini tetap akan dikirim saat submit.
+                    </div>
+                  );
+                }
+
+                return (
+                  <OutletDetailCard
+                    actionLabel="Remove"
+                    actionVariant="remove"
+                    key={outlet.storeCode}
+                    onAction={() => handleRemoveOutlet(outlet.storeCode)}
+                    outlet={{
+                      kodeToko: outlet.storeCode,
+                      namaToko: outlet.name,
+                      alamat: outlet.address,
+                      kecamatan: outlet.subdistrict,
+                      kabupaten: outlet.regency,
+                      district: outlet.district,
+                      territory: outlet.territory,
+                      territoryGroup: outlet.territoryGroup,
+                      supervisorName: outlet.supervisorName,
+                      noTelpSpv: outlet.supervisorPhone,
+                      typeOutlet: outlet.typeOutlet,
+                      visualPposm: outlet.visualPposm,
+                      brand: outlet.brand,
+                      ukuran: outlet.size,
+                      lat: outlet.latitude,
+                      lon: outlet.longitude,
+                    }}
+                  />
+                );
+              })
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
+            Current Assignments
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+            Outlet aktif untuk user terpilih
+          </h2>
+
+          {loadError ? (
+            <p className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {loadError}
+            </p>
+          ) : null}
+
+          <div className="mt-5 space-y-4">
+            {assignments.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
+                No assignments for this user.
+              </p>
+            ) : (
+              assignments.map((assignment) => (
+                <div key={assignment.id}>
+                  <div className="mb-2 flex items-center justify-between px-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    <span>{assignment.active ? "Active" : "Inactive"}</span>
+                    <span>
+                      {formatCoordinate(assignment.lat)}, {formatCoordinate(assignment.lon)}
+                    </span>
+                  </div>
+                  <OutletDetailCard outlet={assignment} />
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      </div>
+
+      <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
+              Outlet Catalog
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+              Master outlet siap dipetakan
+            </h2>
+          </div>
+          <p className="text-sm text-slate-500">
+            {normalizedQuery
+              ? `Hasil pencarian "${deferredOutletQuery.trim()}"`
+              : "Urutan default: kabupaten, kecamatan, alamat, lalu koordinat"}
+          </p>
+        </div>
+
+        <div className="mt-5 space-y-4">
+          {visibleOutlets.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
+              Tidak ada outlet yang cocok dengan pencarian.
+            </p>
+          ) : (
+            visibleOutlets.map((outlet) => (
+              <OutletDetailCard
+                actionLabel={selectedCodeSet.has(outlet.storeCode) ? "Remove" : "Add"}
+                actionVariant={selectedCodeSet.has(outlet.storeCode) ? "remove" : "add"}
+                key={outlet.id}
+                onAction={() => {
+                  if (selectedCodeSet.has(outlet.storeCode)) {
+                    handleRemoveOutlet(outlet.storeCode);
+                    return;
+                  }
+
+                  handleAddOutlet(outlet.storeCode);
+                }}
+                outlet={{
+                  kodeToko: outlet.storeCode,
+                  namaToko: outlet.name,
+                  alamat: outlet.address,
+                  kecamatan: outlet.subdistrict,
+                  kabupaten: outlet.regency,
+                  district: outlet.district,
+                  territory: outlet.territory,
+                  territoryGroup: outlet.territoryGroup,
+                  supervisorName: outlet.supervisorName,
+                  noTelpSpv: outlet.supervisorPhone,
+                  typeOutlet: outlet.typeOutlet,
+                  visualPposm: outlet.visualPposm,
+                  brand: outlet.brand,
+                  ukuran: outlet.size,
+                  lat: outlet.latitude,
+                  lon: outlet.longitude,
+                }}
+              />
             ))
           )}
         </div>
+
+        {searchedOutlets.length > visibleOutlets.length ? (
+          <p className="mt-4 text-sm text-slate-500">
+            Menampilkan {visibleOutlets.length} outlet pertama. Persempit pencarian untuk melihat hasil lain.
+          </p>
+        ) : null}
       </section>
     </div>
   );

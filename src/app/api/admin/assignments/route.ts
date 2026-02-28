@@ -48,26 +48,74 @@ export async function GET(request: Request) {
           id: true,
           storeCode: true,
           name: true,
+          address: true,
+          subdistrict: true,
+          regency: true,
+          district: true,
           territory: true,
+          territoryGroup: true,
+          supervisorPhone: true,
+          typeOutlet: true,
+          visualPposm: true,
+          brand: true,
+          size: true,
+          latitude: true,
+          longitude: true,
+          supervisor: {
+            select: {
+              name: true,
+            },
+          },
         },
-      },
-    },
-    orderBy: {
-      outlet: {
-        storeCode: "asc",
       },
     },
   });
 
+  const sortedAssignments = [...assignments].sort((left, right) => {
+    const leftKey = [
+      left.outlet.regency ?? "",
+      left.outlet.subdistrict ?? "",
+      left.outlet.district ?? "",
+      left.outlet.address,
+      left.outlet.latitude.toFixed(6),
+      left.outlet.longitude.toFixed(6),
+      left.outlet.storeCode,
+    ].join("|");
+    const rightKey = [
+      right.outlet.regency ?? "",
+      right.outlet.subdistrict ?? "",
+      right.outlet.district ?? "",
+      right.outlet.address,
+      right.outlet.latitude.toFixed(6),
+      right.outlet.longitude.toFixed(6),
+      right.outlet.storeCode,
+    ].join("|");
+
+    return leftKey.localeCompare(rightKey);
+  });
+
   return NextResponse.json({
     user,
-    assignments: assignments.map((assignment) => ({
+    assignments: sortedAssignments.map((assignment) => ({
       id: assignment.id,
       active: assignment.active,
       outletId: assignment.outletId,
       kodeToko: assignment.outlet.storeCode,
       namaToko: assignment.outlet.name,
+      alamat: assignment.outlet.address,
+      kecamatan: assignment.outlet.subdistrict,
+      kabupaten: assignment.outlet.regency,
+      district: assignment.outlet.district,
       territory: assignment.outlet.territory,
+      territoryGroup: assignment.outlet.territoryGroup,
+      supervisorName: assignment.outlet.supervisor?.name ?? null,
+      noTelpSpv: assignment.outlet.supervisorPhone,
+      typeOutlet: assignment.outlet.typeOutlet,
+      visualPposm: assignment.outlet.visualPposm,
+      brand: assignment.outlet.brand,
+      ukuran: assignment.outlet.size,
+      lat: assignment.outlet.latitude,
+      lon: assignment.outlet.longitude,
     })),
   });
 }
