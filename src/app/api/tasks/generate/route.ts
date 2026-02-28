@@ -63,33 +63,37 @@ export async function POST(request: Request) {
     const parity = getWeekParity(date);
     const day = getScheduleDayFromDate(date);
 
-    const outlets = await prisma.outlet.findMany({
+    const assignments = await prisma.assignment.findMany({
       where:
         parity === "ODD"
           ? {
-              oddScheduleDay: day,
-              fieldForceId: { not: null },
+              active: true,
+              outlet: {
+                oddScheduleDay: day,
+              },
             }
           : {
-              evenScheduleDay: day,
-              fieldForceId: { not: null },
+              active: true,
+              outlet: {
+                evenScheduleDay: day,
+              },
             },
       select: {
-        id: true,
-        fieldForceId: true,
+        userId: true,
+        outletId: true,
       },
     });
 
-    if (outlets.length === 0) {
+    if (assignments.length === 0) {
       continue;
     }
 
-    candidates += outlets.length;
+    candidates += assignments.length;
 
     const result = await prisma.task.createMany({
-      data: outlets.map((outlet) => ({
-        outletId: outlet.id,
-        userId: outlet.fieldForceId!,
+      data: assignments.map((assignment) => ({
+        outletId: assignment.outletId,
+        userId: assignment.userId,
         scheduledDate: startOfUtcDay(date),
         weekParity: parity,
         scheduleDay: day,

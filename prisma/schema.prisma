@@ -51,6 +51,7 @@ model User {
   updatedAt         DateTime      @updatedAt
   assignedOutlets   Outlet[]      @relation("FieldForceOutlets")
   supervisedOutlets Outlet[]      @relation("SupervisorOutlets")
+  outletAssignments Assignment[]
   tasks             Task[]
   locationPings     LocationPing[]
   dutySessions      DutySession[]
@@ -84,11 +85,27 @@ model Outlet {
   updatedAt       DateTime     @updatedAt
   supervisor      User?        @relation("SupervisorOutlets", fields: [supervisorId], references: [id], onDelete: SetNull)
   fieldForce      User?        @relation("FieldForceOutlets", fields: [fieldForceId], references: [id], onDelete: SetNull)
+  assignments     Assignment[]
   tasks           Task[]
 
   @@index([fieldForceId])
   @@index([supervisorId])
   @@index([territory])
+}
+
+model Assignment {
+  id        String   @id @default(cuid())
+  userId    String
+  outletId  String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  outlet    Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, outletId])
+  @@index([userId, active])
+  @@index([outletId, active])
 }
 
 model Task {

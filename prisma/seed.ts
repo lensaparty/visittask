@@ -127,6 +127,29 @@ async function main() {
     }),
   ]);
 
+  await Promise.all(
+    outlets
+      .filter((outlet) => Boolean(outlet.fieldForceId))
+      .map((outlet) =>
+        prisma.assignment.upsert({
+          where: {
+            userId_outletId: {
+              userId: outlet.fieldForceId!,
+              outletId: outlet.id,
+            },
+          },
+          update: {
+            active: true,
+          },
+          create: {
+            userId: outlet.fieldForceId!,
+            outletId: outlet.id,
+            active: true,
+          },
+        }),
+      ),
+  );
+
   const today = new Date();
 
   await Promise.all(

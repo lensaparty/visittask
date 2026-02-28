@@ -284,7 +284,7 @@ export async function importOutletsFromWorkbook(file: File) {
         },
       });
 
-      await prisma.outlet.upsert({
+      const savedOutlet = await prisma.outlet.upsert({
         where: {
           storeCode: parsed.data.kodeToko,
         },
@@ -332,6 +332,25 @@ export async function importOutletsFromWorkbook(file: File) {
           sunscreenCount: parsed.data.jumlahSunscreen,
         },
       });
+
+      if (fieldForce?.id) {
+        await prisma.assignment.upsert({
+          where: {
+            userId_outletId: {
+              userId: fieldForce.id,
+              outletId: savedOutlet.id,
+            },
+          },
+          update: {
+            active: true,
+          },
+          create: {
+            userId: fieldForce.id,
+            outletId: savedOutlet.id,
+            active: true,
+          },
+        });
+      }
 
       if (existingOutlet) {
         summary.updated += 1;

@@ -49,6 +49,12 @@ export default async function AppLayout({
                   >
                     Admin Import
                   </Link>
+                  <Link
+                    className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700"
+                    href="/admin/assign"
+                  >
+                    Admin Assign
+                  </Link>
                 </>
               )}
               <form action="/api/auth/logout" method="post">
