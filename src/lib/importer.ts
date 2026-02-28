@@ -1,10 +1,38 @@
 import bcrypt from "bcryptjs";
-import { UserRole } from "@prisma/client";
+import { ScheduleDay, UserRole } from "@prisma/client";
 import { getDefaultImportedUserPassword } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
-import { parseScheduleDay } from "@/lib/schedule";
 
 let cachedImportPasswordHash: string | null = null;
+
+const IMPORT_WEEKDAY_TO_SCHEDULE_DAY: Record<ImportScheduleDayCode, ScheduleDay> = {
+  MON: ScheduleDay.SENIN,
+  TUE: ScheduleDay.SELASA,
+  WED: ScheduleDay.RABU,
+  THU: ScheduleDay.KAMIS,
+  FRI: ScheduleDay.JUMAT,
+  SAT: ScheduleDay.SABTU,
+  SUN: ScheduleDay.MINGGU,
+};
+
+export type ImportScheduleDayCode =
+  | "MON"
+  | "TUE"
+  | "WED"
+  | "THU"
+  | "FRI"
+  | "SAT"
+  | "SUN";
+
+const INDONESIAN_WEEKDAY_TO_IMPORT_CODE: Record<string, ImportScheduleDayCode> = {
+  senin: "MON",
+  selasa: "TUE",
+  rabu: "WED",
+  kamis: "THU",
+  jumat: "FRI",
+  sabtu: "SAT",
+  minggu: "SUN",
+};
 
 function slugify(value: string) {
   return value
@@ -126,6 +154,22 @@ export function normalizeText(value: unknown) {
   return text || null;
 }
 
-export function parseImportedSchedule(value: unknown) {
-  return parseScheduleDay(value);
+export function parseImportedScheduleCode(value: unknown) {
+  const normalized = normalizeText(value)?.toLowerCase();
+
+  if (!normalized || normalized === "0") {
+    return null;
+  }
+
+  return INDONESIAN_WEEKDAY_TO_IMPORT_CODE[normalized] ?? null;
+}
+
+export function toPrismaScheduleDay(
+  value: ImportScheduleDayCode | null,
+): ScheduleDay | null {
+  if (!value) {
+    return null;
+  }
+
+  return IMPORT_WEEKDAY_TO_SCHEDULE_DAY[value];
 }

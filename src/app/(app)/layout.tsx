@@ -36,12 +36,20 @@ export default async function AppLayout({
                   Tasks Today
                 </Link>
               ) : (
-                <Link
-                  className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700"
-                  href="/supervisor"
-                >
-                  Dashboard
-                </Link>
+                <>
+                  <Link
+                    className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700"
+                    href="/supervisor"
+                  >
+                    Dashboard
+                  </Link>
+                  <Link
+                    className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700"
+                    href="/admin/import"
+                  >
+                    Admin Import
+                  </Link>
+                </>
               )}
               <form action="/api/auth/logout" method="post">
                 <button

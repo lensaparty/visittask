@@ -3,26 +3,6 @@ import { NextResponse } from "next/server";
 import { importOutletsFromWorkbook } from "@/lib/outlet-import";
 import { getCurrentUser } from "@/lib/session";
 
-async function getValidatedUpload(request: Request) {
-  const formData = await request.formData();
-  const uploadedFile = formData.get("file");
-
-  if (!(uploadedFile instanceof File)) {
-    return {
-      file: null,
-      error: NextResponse.json(
-        { message: "Attach an .xlsx file in the `file` field." },
-        { status: 400 },
-      ),
-    };
-  }
-
-  return {
-    file: uploadedFile,
-    error: null,
-  };
-}
-
 export async function POST(request: Request) {
   const user = await getCurrentUser();
 
@@ -34,14 +14,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Forbidden." }, { status: 403 });
   }
 
-  const { file, error } = await getValidatedUpload(request);
+  const formData = await request.formData();
+  const uploadedFile = formData.get("file");
 
-  if (!file || error) {
-    return error!;
+  if (!(uploadedFile instanceof File)) {
+    return NextResponse.json(
+      { message: "Attach an .xlsx file in the `file` field." },
+      { status: 400 },
+    );
   }
 
   try {
-    const summary = await importOutletsFromWorkbook(file);
+    const summary = await importOutletsFromWorkbook(uploadedFile);
     return NextResponse.json(summary);
   } catch (importError) {
     return NextResponse.json(
