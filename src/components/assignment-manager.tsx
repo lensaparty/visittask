@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useDeferredValue, useEffect, useState, useTransition } from "react";
+import { AssignmentPreviewMap } from "@/components/assignment-preview-map";
 
 type AssignableUser = {
   id: string;
@@ -85,6 +86,10 @@ function parseOutletCodes(value: string) {
 
 function formatCoordinate(value: number) {
   return value.toFixed(6);
+}
+
+function toRoundedCoordinate(value: number) {
+  return Number(formatCoordinate(value));
 }
 
 function escapeCsvField(value: string | number | null | undefined) {
@@ -558,6 +563,42 @@ export function AssignmentManager({
     window.URL.revokeObjectURL(objectUrl);
   }
 
+  async function handleExportWorkbook() {
+    if (!selectedUser || assignments.length === 0) {
+      return;
+    }
+
+    const { utils, writeFile } = await import("xlsx");
+    const rows = assignments.map((assignment) => ({
+      "Field Force": selectedUser.name,
+      Email: selectedUser.email,
+      "Assignment Status": assignment.active ? "ACTIVE" : "INACTIVE",
+      "Draft State": getDraftStateLabel(assignment),
+      "Kode Toko": assignment.kodeToko,
+      "Nama Toko": assignment.namaToko,
+      Alamat: assignment.alamat,
+      Kecamatan: assignment.kecamatan ?? "",
+      Kabupaten: assignment.kabupaten ?? "",
+      Distrik: assignment.district ?? "",
+      Territory: assignment.territory ?? "",
+      "Group Territory": assignment.territoryGroup ?? "",
+      Supervisor: assignment.supervisorName ?? "",
+      "No Telp SPV": assignment.noTelpSpv ?? "",
+      "Type Outlet": assignment.typeOutlet ?? "",
+      "Visual PPOSM": assignment.visualPposm ?? "",
+      Brand: assignment.brand ?? "",
+      Ukuran: assignment.ukuran ?? "",
+      Latitude: toRoundedCoordinate(assignment.lat),
+      Longitude: toRoundedCoordinate(assignment.lon),
+    }));
+    const worksheet = utils.json_to_sheet(rows);
+    const workbook = utils.book_new();
+    const safeName = selectedUser.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+    utils.book_append_sheet(workbook, worksheet, "Assignments");
+    writeFile(workbook, `assignments-${safeName || "field-force"}.xlsx`);
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitResult(null);
@@ -914,6 +955,16 @@ export function AssignmentManager({
               <button
                 className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={assignments.length === 0}
+                onClick={() => {
+                  void handleExportWorkbook();
+                }}
+                type="button"
+              >
+                Export XLSX
+              </button>
+              <button
+                className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={assignments.length === 0}
                 onClick={handleExportAssignments}
                 type="button"
               >
@@ -986,6 +1037,18 @@ export function AssignmentManager({
               </p>
               <p className="mt-1 font-semibold text-cyan-800">{draftActiveCount}</p>
             </div>
+          </div>
+
+          <div className="mt-5">
+            <AssignmentPreviewMap
+              outlets={selectedOutlets.map((outlet) => ({
+                kodeToko: outlet.storeCode,
+                namaToko: outlet.name,
+                alamat: outlet.address,
+                lat: outlet.latitude,
+                lon: outlet.longitude,
+              }))}
+            />
           </div>
 
           {loadError ? (
