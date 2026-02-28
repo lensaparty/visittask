@@ -1,36 +1,122 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Field Force Visit Tasks MVP
 
-## Getting Started
+Minimal web MVP for field-force outlet visits with:
 
-First, run the development server:
+- Next.js App Router + TypeScript
+- Tailwind CSS
+- Prisma + PostgreSQL
+- Leaflet + OpenStreetMap tiles
+- Email/password auth with JWT cookies
+
+## What It Does
+
+### Field Force
+
+- Login with email and password
+- Start or stop duty tracking
+- Send browser geolocation pings every 45 seconds while duty is active
+- View today's tasks
+- Open a task detail page with outlet map and current device location
+- Check in only if within 100 meters of the outlet coordinates
+- Check out and store final coordinates
+
+### Supervisor
+
+- View field-force users and their last known location ping
+- View today's task status summary
+- Upload the source Excel file to import outlets and assigned users
+- Generate tasks for a date range using odd/even ISO week rules
+
+## Data Rules
+
+- `Koordinat` is parsed from `"lat , lon"` text, for example `"-7.219867 , 106.894733"`.
+- `Ganjil` is used on odd ISO weeks.
+- `Genap` is used on even ISO weeks.
+- If the selected schedule day matches the date's weekday, a task is generated for the assigned field-force user.
+- `0` in `Ganjil` or `Genap` means no schedule for that parity.
+
+## Local Setup
+
+1. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+2. Copy environment variables:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+3. Start PostgreSQL and make sure `DATABASE_URL` points to it.
+
+4. Apply the Prisma migration:
+
+   ```bash
+   npm run db:migrate
+   ```
+
+5. Generate the Prisma client if needed:
+
+   ```bash
+   npm run db:generate
+   ```
+
+6. Seed demo data:
+
+   ```bash
+   npm run db:seed
+   ```
+
+7. Start the app:
+
+   ```bash
+   npm run dev
+   ```
+
+8. Open [http://localhost:3000](http://localhost:3000)
+
+## Seeded Accounts
+
+Default password comes from `DEFAULT_IMPORTED_USER_PASSWORD` in `.env`.
+
+- Supervisor: `supervisor.demo@example.com`
+- Field force: `aris.ff@example.com`
+- Field force: `dina.ff@example.com`
+
+## Excel Import
+
+Upload the workbook from the supervisor dashboard.
+
+- The first worksheet is used.
+- Missing `Kode Toko`, `Nama Toko`, `Alamat`, or invalid `Koordinat` rows are skipped.
+- Supervisor and field-force users are auto-created if they do not already exist.
+- Auto-created users get the default password from `DEFAULT_IMPORTED_USER_PASSWORD`.
+
+## Task Generation
+
+Use the supervisor dashboard date-range form.
+
+- Max range is 31 days per request.
+- Duplicate tasks are skipped using a unique constraint on `outletId + userId + scheduledDate`.
+
+## Useful Scripts
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run build
+npm run lint
+npm run typecheck
+npm run db:generate
+npm run db:migrate
+npm run db:seed
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Verified
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The project was validated with:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `npm run typecheck`
+- `npm run lint`
+- `npm run build`
