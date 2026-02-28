@@ -53,6 +53,8 @@ type BulkAssignmentResult = {
   user: AssignableUser;
   requestedCount: number;
   assignedCount: number;
+  activatedCount: number;
+  deactivatedCount: number;
   missingOutletCodes: string[];
   message?: string;
 };
@@ -221,6 +223,7 @@ export function AssignmentManager({
   const [selectedUserId, setSelectedUserId] = useState(users[0]?.id ?? "");
   const [textareaValue, setTextareaValue] = useState("");
   const [outletQuery, setOutletQuery] = useState("");
+  const [removedQuery, setRemovedQuery] = useState("");
   const [removedCodes, setRemovedCodes] = useState<string[]>([]);
   const [assignments, setAssignments] = useState<AssignmentView[]>([]);
   const [submitResult, setSubmitResult] = useState<BulkAssignmentResult | null>(null);
@@ -238,6 +241,7 @@ export function AssignmentManager({
   const selectedOutlets = selectedCodes
     .map((code) => outletByCode.get(code))
     .filter((outlet): outlet is OutletView => Boolean(outlet));
+  const activeAssignments = assignments.filter((assignment) => assignment.active);
   const removedOutlets = removedCodes
     .map((code) => outletByCode.get(code))
     .filter((outlet): outlet is OutletView => Boolean(outlet));
@@ -247,8 +251,30 @@ export function AssignmentManager({
     ? outlets.filter((outlet) => buildOutletSearchText(outlet).includes(normalizedQuery))
     : outlets;
   const visibleOutlets = normalizedQuery ? searchedOutlets.slice(0, 80) : searchedOutlets.slice(0, 36);
+  const normalizedRemovedQuery = removedQuery.trim().toLowerCase();
+  const visibleRemovedCodes = normalizedRemovedQuery
+    ? removedCodes.filter((code) => {
+        const outlet = outletByCode.get(code);
 
-  async function loadAssignmentsForUser(userId: string) {
+        if (!outlet) {
+          return code.toLowerCase().includes(normalizedRemovedQuery);
+        }
+
+        return buildOutletSearchText(outlet).includes(normalizedRemovedQuery);
+      })
+    : removedCodes;
+
+  function hydrateDraftFromAssignments(nextAssignments: AssignmentView[]) {
+    const activeCodes = nextAssignments
+      .filter((assignment) => assignment.active)
+      .map((assignment) => assignment.kodeToko);
+
+    setTextareaValue(activeCodes.join("\n"));
+    setRemovedCodes([]);
+    setRemovedQuery("");
+  }
+
+  async function loadAssignmentsForUser(userId: string, hydrateDraft = false) {
     setLoadError(null);
 
     try {
@@ -263,7 +289,12 @@ export function AssignmentManager({
         return;
       }
 
-      setAssignments(payload.assignments ?? []);
+      const nextAssignments = payload.assignments ?? [];
+      setAssignments(nextAssignments);
+
+      if (hydrateDraft) {
+        hydrateDraftFromAssignments(nextAssignments);
+      }
     } catch (error) {
       setAssignments([]);
       setLoadError(error instanceof Error ? error.message : "Unable to load assignments.");
@@ -294,8 +325,10 @@ export function AssignmentManager({
           return;
         }
 
+        const nextAssignments = payload.assignments ?? [];
         setLoadError(null);
-        setAssignments(payload.assignments ?? []);
+        setAssignments(nextAssignments);
+        hydrateDraftFromAssignments(nextAssignments);
       } catch (error) {
         if (!cancelled) {
           setAssignments([]);
@@ -337,6 +370,47 @@ export function AssignmentManager({
     handleAddOutlet(code);
   }
 
+  function handleRemoveAll() {
+    if (selectedCodes.length === 0) {
+      return;
+    }
+
+    setRemovedCodes((currentCodes) => {
+      const nextRemoved = [...currentCodes];
+
+      for (const code of [...selectedCodes].reverse()) {
+        if (!nextRemoved.includes(code)) {
+          nextRemoved.unshift(code);
+        }
+      }
+
+      return nextRemoved;
+    });
+    setTextareaValue("");
+    setSubmitResult(null);
+    setSubmitError(null);
+  }
+
+  function handleRestoreAll() {
+    if (removedCodes.length === 0) {
+      return;
+    }
+
+    const mergedCodes = [...selectedCodes];
+
+    for (const code of removedCodes) {
+      if (!mergedCodes.includes(code)) {
+        mergedCodes.push(code);
+      }
+    }
+
+    setTextareaValue(mergedCodes.join("\n"));
+    setRemovedCodes([]);
+    setRemovedQuery("");
+    setSubmitResult(null);
+    setSubmitError(null);
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitResult(null);
@@ -344,11 +418,6 @@ export function AssignmentManager({
 
     if (!selectedUser) {
       setSubmitError("Pilih user field force dulu.");
-      return;
-    }
-
-    if (selectedCodes.length === 0) {
-      setSubmitError("Tambahkan minimal satu kode toko.");
       return;
     }
 
@@ -373,9 +442,7 @@ export function AssignmentManager({
           }
 
           setSubmitResult(payload);
-          setTextareaValue("");
-          setRemovedCodes([]);
-          await loadAssignmentsForUser(selectedUser.id);
+          await loadAssignmentsForUser(selectedUser.id, true);
         } catch (error) {
           setSubmitError(error instanceof Error ? error.message : "Unable to save assignments.");
         }
@@ -406,7 +473,9 @@ export function AssignmentManager({
                   setSelectedUserId(event.target.value);
                   setAssignments([]);
                   setLoadError(null);
+                  setTextareaValue("");
                   setRemovedCodes([]);
+                  setRemovedQuery("");
                   setSubmitResult(null);
                 }}
                 value={selectedUserId}
@@ -464,11 +533,24 @@ export function AssignmentManager({
                 onChange={(event) => {
                   const nextValue = event.target.value;
                   const nextSelectedSet = new Set(parseOutletCodes(nextValue));
+                  const newlyRemovedCodes = selectedCodes.filter(
+                    (code) => !nextSelectedSet.has(code),
+                  );
 
                   setTextareaValue(nextValue);
-                  setRemovedCodes((currentCodes) =>
-                    currentCodes.filter((code) => !nextSelectedSet.has(code)),
-                  );
+                  setRemovedCodes((currentCodes) => {
+                    const nextRemoved = currentCodes.filter(
+                      (code) => !nextSelectedSet.has(code),
+                    );
+
+                    for (const code of newlyRemovedCodes) {
+                      if (!nextRemoved.includes(code)) {
+                        nextRemoved.unshift(code);
+                      }
+                    }
+
+                    return nextRemoved;
+                  });
                 }}
                 placeholder={"TOKO-001\nTOKO-002\nTOKO-003"}
                 value={textareaValue}
@@ -483,7 +565,7 @@ export function AssignmentManager({
               disabled={isPending || users.length === 0}
               type="submit"
             >
-              {isPending ? "Saving..." : "Assign Outlets"}
+              {isPending ? "Saving..." : "Save Assignments"}
             </button>
           </form>
 
@@ -496,8 +578,10 @@ export function AssignmentManager({
           {submitResult ? (
             <div className="mt-4 space-y-3 rounded-2xl bg-slate-100 px-4 py-4 text-sm text-slate-700">
               <p>
-                Assigned {submitResult.assignedCount} of {submitResult.requestedCount} requested codes to{" "}
-                {submitResult.user.name}.
+                Draft untuk {submitResult.user.name} sudah disimpan. Aktif: {submitResult.assignedCount} outlet.
+              </p>
+              <p className="text-slate-600">
+                Activated: {submitResult.activatedCount} • Deactivated: {submitResult.deactivatedCount}
               </p>
               {submitResult.missingOutletCodes.length > 0 ? (
                 <p className="text-slate-600">
@@ -518,7 +602,17 @@ export function AssignmentManager({
                 Kode siap di-assign
               </h2>
             </div>
-            <p className="text-sm text-slate-500">{selectedOutlets.length} outlet terdeteksi</p>
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-slate-500">{selectedOutlets.length} outlet terdeteksi</p>
+              <button
+                className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:border-rose-300 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={selectedCodes.length === 0}
+                onClick={handleRemoveAll}
+                type="button"
+              >
+                Remove All
+              </button>
+            </div>
           </div>
 
           <div className="mt-5 space-y-4">
@@ -582,16 +676,40 @@ export function AssignmentManager({
                 Pilihan yang dihapus
               </h2>
             </div>
-            <p className="text-sm text-slate-500">{removedOutlets.length} outlet siap di-restore</p>
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-slate-500">{removedOutlets.length} outlet siap di-restore</p>
+              <button
+                className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:border-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={removedCodes.length === 0}
+                onClick={handleRestoreAll}
+                type="button"
+              >
+                Restore All
+              </button>
+            </div>
           </div>
+
+          <label className="mt-5 block space-y-2 text-sm font-medium text-slate-700">
+            <span>Filter Removed</span>
+            <input
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => setRemovedQuery(event.target.value)}
+              placeholder="Cari outlet yang di-remove"
+              value={removedQuery}
+            />
+          </label>
 
           <div className="mt-5 space-y-4">
             {removedCodes.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
                 Belum ada outlet yang di-remove.
               </p>
+            ) : visibleRemovedCodes.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
+                Tidak ada outlet removed yang cocok dengan filter.
+              </p>
             ) : (
-              removedCodes.map((code) => {
+              visibleRemovedCodes.map((code) => {
                 const outlet = outletByCode.get(code);
 
                 if (!outlet) {
@@ -643,6 +761,9 @@ export function AssignmentManager({
           <h2 className="mt-2 text-2xl font-semibold text-slate-900">
             Outlet aktif untuk user terpilih
           </h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Gunakan tombol di bawah untuk batalkan outlet aktif atau restore lagi sebelum menekan save.
+          </p>
 
           {loadError ? (
             <p className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -651,20 +772,42 @@ export function AssignmentManager({
           ) : null}
 
           <div className="mt-5 space-y-4">
-            {assignments.length === 0 ? (
+            {activeAssignments.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
                 No assignments for this user.
               </p>
             ) : (
-              assignments.map((assignment) => (
+              activeAssignments.map((assignment) => (
                 <div key={assignment.id}>
                   <div className="mb-2 flex items-center justify-between px-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    <span>{assignment.active ? "Active" : "Inactive"}</span>
+                    <span>
+                      {selectedCodeSet.has(assignment.kodeToko)
+                        ? "Staged Active"
+                        : removedCodeSet.has(assignment.kodeToko)
+                          ? "Pending Removal"
+                          : "Active"}
+                    </span>
                     <span>
                       {formatCoordinate(assignment.lat)}, {formatCoordinate(assignment.lon)}
                     </span>
                   </div>
-                  <OutletDetailCard outlet={assignment} />
+                  <OutletDetailCard
+                    actionLabel={
+                      selectedCodeSet.has(assignment.kodeToko) ? "Batalkan" : "Restore"
+                    }
+                    actionVariant={
+                      selectedCodeSet.has(assignment.kodeToko) ? "remove" : "restore"
+                    }
+                    onAction={() => {
+                      if (selectedCodeSet.has(assignment.kodeToko)) {
+                        handleRemoveOutlet(assignment.kodeToko);
+                        return;
+                      }
+
+                      handleRestoreOutlet(assignment.kodeToko);
+                    }}
+                    outlet={assignment}
+                  />
                 </div>
               ))
             )}

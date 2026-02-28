@@ -6,7 +6,7 @@ import { getCurrentUser } from "@/lib/session";
 
 const bulkAssignmentSchema = z.object({
   userEmail: z.string().email(),
-  outletCodes: z.array(z.string()).min(1),
+  outletCodes: z.array(z.string()),
 });
 
 export async function POST(request: Request) {
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
   if (!parsed.success) {
     return NextResponse.json(
-      { message: "Provide `userEmail` and a non-empty `outletCodes` array." },
+      { message: "Provide `userEmail` and an `outletCodes` array." },
       { status: 400 },
     );
   }
@@ -38,13 +38,6 @@ export async function POST(request: Request) {
         .filter((code) => code.length > 0),
     ),
   );
-
-  if (normalizedCodes.length === 0) {
-    return NextResponse.json(
-      { message: "At least one outlet code is required." },
-      { status: 400 },
-    );
-  }
 
   const user = await prisma.user.findUnique({
     where: { email: userEmail },
@@ -86,10 +79,48 @@ export async function POST(request: Request) {
     .filter((outlet): outlet is NonNullable<typeof outlet> => Boolean(outlet));
   const missingOutletCodes = normalizedCodes.filter((code) => !outletByCode.has(code));
 
-  if (matchedOutlets.length > 0) {
-    await prisma.$transaction(
-      matchedOutlets.map((outlet) =>
-        prisma.assignment.upsert({
+  const targetOutletIds = matchedOutlets.map((outlet) => outlet.id);
+
+  const syncResult = await prisma.$transaction(async (tx) => {
+    const existingAssignments = await tx.assignment.findMany({
+      where: {
+        userId: user.id,
+      },
+      select: {
+        outletId: true,
+        active: true,
+      },
+    });
+
+    const existingActiveIds = new Set(
+      existingAssignments
+        .filter((assignment) => assignment.active)
+        .map((assignment) => assignment.outletId),
+    );
+
+    const targetOutletIdSet = new Set(targetOutletIds);
+    const deactivateIds = [...existingActiveIds].filter(
+      (outletId) => !targetOutletIdSet.has(outletId),
+    );
+    const activateIds = targetOutletIds.filter((outletId) => !existingActiveIds.has(outletId));
+
+    if (deactivateIds.length > 0) {
+      await tx.assignment.updateMany({
+        where: {
+          userId: user.id,
+          outletId: {
+            in: deactivateIds,
+          },
+        },
+        data: {
+          active: false,
+        },
+      });
+    }
+
+    if (matchedOutlets.length > 0) {
+      for (const outlet of matchedOutlets) {
+        await tx.assignment.upsert({
           where: {
             userId_outletId: {
               userId: user.id,
@@ -104,10 +135,15 @@ export async function POST(request: Request) {
             outletId: outlet.id,
             active: true,
           },
-        }),
-      ),
-    );
-  }
+        });
+      }
+    }
+
+    return {
+      deactivatedCount: deactivateIds.length,
+      activatedCount: activateIds.length,
+    };
+  });
 
   return NextResponse.json({
     user: {
@@ -117,6 +153,8 @@ export async function POST(request: Request) {
     },
     requestedCount: normalizedCodes.length,
     assignedCount: matchedOutlets.length,
+    activatedCount: syncResult.activatedCount,
+    deactivatedCount: syncResult.deactivatedCount,
     missingOutletCodes,
   });
 }
