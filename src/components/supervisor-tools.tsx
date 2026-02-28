@@ -11,8 +11,8 @@ function formatLocalDate(date: Date) {
 export function SupervisorTools() {
   const [generateMessage, setGenerateMessage] = useState<string | null>(null);
   const [range, setRange] = useState({
-    startDate: formatLocalDate(new Date()),
-    endDate: formatLocalDate(new Date()),
+    from: formatLocalDate(new Date()),
+    to: formatLocalDate(new Date()),
   });
   const [isPending, startTransition] = useTransition();
 
@@ -34,7 +34,7 @@ export function SupervisorTools() {
           const payload = (await response.json().catch(() => ({}))) as {
             message?: string;
             created?: number;
-            skippedDuplicates?: number;
+            skipped?: number;
           };
 
           if (!response.ok) {
@@ -43,7 +43,7 @@ export function SupervisorTools() {
           }
 
           setGenerateMessage(
-            `Created ${payload.created ?? 0} tasks, skipped ${payload.skippedDuplicates ?? 0} duplicates.`,
+            `Created ${payload.created ?? 0} tasks, skipped ${payload.skipped ?? 0}.`,
           );
         } catch (generateError) {
           setGenerateMessage(
@@ -76,11 +76,11 @@ export function SupervisorTools() {
                 onChange={(event) =>
                   setRange((current) => ({
                     ...current,
-                    startDate: event.target.value,
+                    from: event.target.value,
                   }))
                 }
                 type="date"
-                value={range.startDate}
+                value={range.from}
               />
             </label>
             <label className="space-y-2 text-sm font-medium text-slate-700">
@@ -90,11 +90,11 @@ export function SupervisorTools() {
                 onChange={(event) =>
                   setRange((current) => ({
                     ...current,
-                    endDate: event.target.value,
+                    to: event.target.value,
                   }))
                 }
                 type="date"
-                value={range.endDate}
+                value={range.to}
               />
             </label>
           </div>

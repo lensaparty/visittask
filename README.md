@@ -100,6 +100,16 @@ Use the supervisor dashboard date-range form.
 
 - Max range is 31 days per request.
 - Duplicate tasks are skipped using a unique constraint on `outletId + userId + scheduledDate`.
+- Nothing runs automatically on server start in development.
+
+Manual API example:
+
+```bash
+curl -X POST http://localhost:3000/api/tasks/generate \
+  -H "Content-Type: application/json" \
+  -H "Cookie: ff_session=YOUR_SESSION_COOKIE" \
+  -d '{"from":"2026-03-01","to":"2026-03-07"}'
+```
 
 ## Useful Scripts
 

@@ -1,6 +1,9 @@
 import { Outlet, ScheduleDay, WeekParity } from "@prisma/client";
 import { getISOWeek } from "date-fns";
 
+export type WeekType = "ODD" | "EVEN";
+export type WeekdayId = "MON" | "TUE" | "WED" | "THU" | "FRI" | "SAT" | "SUN";
+
 const SCHEDULE_DAY_LABELS: Record<ScheduleDay, string> = {
   [ScheduleDay.SENIN]: "Senin",
   [ScheduleDay.SELASA]: "Selasa",
@@ -21,22 +24,48 @@ const DAY_NAME_LOOKUP: Record<string, ScheduleDay> = {
   minggu: ScheduleDay.MINGGU,
 };
 
+const WEEKDAY_ID_LOOKUP: Record<number, WeekdayId> = {
+  0: "SUN",
+  1: "MON",
+  2: "TUE",
+  3: "WED",
+  4: "THU",
+  5: "FRI",
+  6: "SAT",
+};
+
+const WEEKDAY_ID_TO_SCHEDULE_DAY: Record<WeekdayId, ScheduleDay> = {
+  MON: ScheduleDay.SENIN,
+  TUE: ScheduleDay.SELASA,
+  WED: ScheduleDay.RABU,
+  THU: ScheduleDay.KAMIS,
+  FRI: ScheduleDay.JUMAT,
+  SAT: ScheduleDay.SABTU,
+  SUN: ScheduleDay.MINGGU,
+};
+
+export function getIsoWeekNumber(date: Date): number {
+  return getISOWeek(date);
+}
+
+export function getWeekType(date: Date): WeekType {
+  return getIsoWeekNumber(date) % 2 === 0 ? "EVEN" : "ODD";
+}
+
+export function getWeekdayId(date: Date): WeekdayId {
+  return WEEKDAY_ID_LOOKUP[date.getDay()];
+}
+
+export function weekdayIdToScheduleDay(weekdayId: WeekdayId): ScheduleDay {
+  return WEEKDAY_ID_TO_SCHEDULE_DAY[weekdayId];
+}
+
 export function getWeekParity(date: Date): WeekParity {
-  return getISOWeek(date) % 2 === 0 ? WeekParity.EVEN : WeekParity.ODD;
+  return getWeekType(date) === "EVEN" ? WeekParity.EVEN : WeekParity.ODD;
 }
 
 export function getScheduleDayFromDate(date: Date): ScheduleDay {
-  const dayMap: Record<number, ScheduleDay> = {
-    0: ScheduleDay.MINGGU,
-    1: ScheduleDay.SENIN,
-    2: ScheduleDay.SELASA,
-    3: ScheduleDay.RABU,
-    4: ScheduleDay.KAMIS,
-    5: ScheduleDay.JUMAT,
-    6: ScheduleDay.SABTU,
-  };
-
-  return dayMap[date.getDay()];
+  return weekdayIdToScheduleDay(getWeekdayId(date));
 }
 
 export function scheduleDayLabel(day: ScheduleDay | null | undefined) {

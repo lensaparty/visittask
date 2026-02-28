@@ -1,19 +1,20 @@
-import { UserRole } from "@prisma/client";
+import { TaskStatus, UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import {
   enumerateDates,
-  getScheduleDayFromDate,
-  getWeekParity,
+  getWeekType,
+  getWeekdayId,
   parseDateInput,
   startOfUtcDay,
+  weekdayIdToScheduleDay,
 } from "@/lib/schedule";
 import { getCurrentUser } from "@/lib/session";
 
 const generateSchema = z.object({
-  startDate: z.string().min(1),
-  endDate: z.string().min(1),
+  from: z.string().min(1),
+  to: z.string().min(1),
 });
 
 export async function POST(request: Request) {
@@ -32,13 +33,13 @@ export async function POST(request: Request) {
 
   if (!parsed.success) {
     return NextResponse.json(
-      { message: "Provide `startDate` and `endDate`." },
+      { message: "Provide `from` and `to` in YYYY-MM-DD format." },
       { status: 400 },
     );
   }
 
-  const startDate = parseDateInput(parsed.data.startDate);
-  const endDate = parseDateInput(parsed.data.endDate);
+  const startDate = parseDateInput(parsed.data.from);
+  const endDate = parseDateInput(parsed.data.to);
 
   if (!startDate || !endDate || endDate < startDate) {
     return NextResponse.json(
@@ -57,25 +58,26 @@ export async function POST(request: Request) {
   }
 
   let created = 0;
-  let candidates = 0;
+  let skipped = 0;
 
   for (const date of days) {
-    const parity = getWeekParity(date);
-    const day = getScheduleDayFromDate(date);
+    const weekType = getWeekType(date);
+    const weekdayId = getWeekdayId(date);
+    const scheduleDay = weekdayIdToScheduleDay(weekdayId);
 
     const assignments = await prisma.assignment.findMany({
       where:
-        parity === "ODD"
+        weekType === "ODD"
           ? {
               active: true,
               outlet: {
-                oddScheduleDay: day,
+                oddScheduleDay: scheduleDay,
               },
             }
           : {
               active: true,
               outlet: {
-                evenScheduleDay: day,
+                evenScheduleDay: scheduleDay,
               },
             },
       select: {
@@ -88,25 +90,24 @@ export async function POST(request: Request) {
       continue;
     }
 
-    candidates += assignments.length;
-
     const result = await prisma.task.createMany({
       data: assignments.map((assignment) => ({
         outletId: assignment.outletId,
         userId: assignment.userId,
         scheduledDate: startOfUtcDay(date),
-        weekParity: parity,
-        scheduleDay: day,
+        weekParity: weekType,
+        scheduleDay,
+        status: TaskStatus.PENDING,
       })),
       skipDuplicates: true,
     });
 
     created += result.count;
+    skipped += assignments.length - result.count;
   }
 
   return NextResponse.json({
     created,
-    skippedDuplicates: candidates - created,
-    totalCandidates: candidates,
+    skipped,
   });
 }
