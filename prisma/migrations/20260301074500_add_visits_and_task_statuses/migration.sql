@@ -60,12 +60,3 @@ SELECT
 FROM "Task"
 WHERE "checkInAt" IS NOT NULL OR "checkOutAt" IS NOT NULL
 ON CONFLICT ("taskId") DO NOTHING;
-
--- Normalize legacy task statuses where possible
-UPDATE "Task"
-SET "status" = 'IN_PROGRESS'
-WHERE "status" = 'CHECKED_IN';
-
-UPDATE "Task"
-SET "status" = 'DONE'
-WHERE "status" = 'COMPLETED';
