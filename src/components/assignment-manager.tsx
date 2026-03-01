@@ -2,11 +2,6 @@
 
 import { FormEvent, useDeferredValue, useEffect, useState, useTransition } from "react";
 import { AssignmentPreviewMap } from "@/components/assignment-preview-map";
-import {
-  getTerritoryPicMapping,
-  normalizeTerritoryGroup,
-  TERRITORY_PIC_MAPPINGS,
-} from "@/lib/territory-pic-map";
 
 type AssignableUser = {
   id: string;
@@ -75,12 +70,6 @@ type AssignmentDeleteResult = {
   message?: string;
 };
 
-type ApplyDsukResult = {
-  territoryGroup: string;
-  updatedCount: number;
-  message?: string;
-};
-
 function parseOutletCodes(value: string) {
   const uniqueCodes = new Set<string>();
 
@@ -111,9 +100,6 @@ function escapeCsvField(value: string | number | null | undefined) {
 }
 
 function buildOutletSearchText(outlet: OutletView) {
-  const territoryPicMapping =
-    getTerritoryPicMapping(outlet.district) ?? getTerritoryPicMapping(outlet.territoryGroup);
-
   return [
     outlet.storeCode,
     outlet.name,
@@ -129,31 +115,11 @@ function buildOutletSearchText(outlet: OutletView) {
     outlet.visualPposm ?? "",
     outlet.brand ?? "",
     outlet.size ?? "",
-    territoryPicMapping?.teamName ?? "",
     formatCoordinate(outlet.latitude),
     formatCoordinate(outlet.longitude),
   ]
     .join(" ")
     .toLowerCase();
-}
-
-function teamAccentClasses(teamName: string | null | undefined) {
-  switch (teamName) {
-    case "Phoenix":
-      return "border-amber-200 bg-amber-50 text-amber-800";
-    case "Vamos":
-      return "border-sky-200 bg-sky-50 text-sky-800";
-    case "Southern":
-      return "border-rose-200 bg-rose-50 text-rose-800";
-    case "North":
-      return "border-indigo-200 bg-indigo-50 text-indigo-800";
-    case "Inferno":
-      return "border-orange-200 bg-orange-50 text-orange-800";
-    case "Pakidulan Troops":
-      return "border-emerald-200 bg-emerald-50 text-emerald-800";
-    default:
-      return "border-slate-200 bg-slate-50 text-slate-700";
-  }
 }
 
 function OutletDetailCard({
@@ -174,7 +140,6 @@ function OutletDetailCard({
     district: string | null;
     territory: string | null;
     territoryGroup: string | null;
-    teamName?: string | null;
     supervisorName: string | null;
     noTelpSpv: string | null;
     typeOutlet: string | null;
@@ -191,11 +156,6 @@ function OutletDetailCard({
       : actionVariant === "restore"
         ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300"
       : "border-cyan-200 bg-cyan-50 text-cyan-800 hover:border-cyan-300";
-  const matchedDistrictCode = normalizeTerritoryGroup(outlet.district);
-  const districtBadgeLabel = matchedDistrictCode.startsWith("DSUK")
-    ? matchedDistrictCode
-    : null;
-  const teamBadgeClassName = teamAccentClasses(outlet.teamName ?? null);
 
   return (
     <article className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm shadow-slate-900/5">
@@ -207,22 +167,6 @@ function OutletDetailCard({
           <h3 className="mt-1 text-base font-semibold text-slate-900">
             {outlet.namaToko}
           </h3>
-          {districtBadgeLabel || outlet.teamName ? (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {districtBadgeLabel ? (
-                <span className="inline-flex rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">
-                  Matched by District: {districtBadgeLabel}
-                </span>
-              ) : null}
-              {outlet.teamName ? (
-                <span
-                  className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${teamBadgeClassName}`}
-                >
-                  Team: {outlet.teamName}
-                </span>
-              ) : null}
-            </div>
-          ) : null}
           <p className="mt-2 text-sm leading-6 text-slate-600">{outlet.alamat}</p>
         </div>
         {onAction && actionLabel ? (
@@ -253,22 +197,11 @@ function OutletDetailCard({
           <p className="mt-1 text-slate-700">{outlet.territory ?? "-"}</p>
           <p className="mt-1 text-slate-600">Group: {outlet.territoryGroup ?? "-"}</p>
         </div>
-        <div className="rounded-2xl bg-cyan-50 px-3 py-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">
-            DSUK Mapping
-          </p>
-          <p className="mt-1 text-slate-700">
-            Group Baru: {outlet.territoryGroup ?? "Belum ada mapping"}
-          </p>
-          <p className="mt-1 text-slate-600">
-            Team: {outlet.teamName ?? "Cocokkan dari distrik DSUK"}
-          </p>
-        </div>
         <div className="rounded-2xl bg-slate-50 px-3 py-3">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-            PIC / Supervisor
+            Supervisor
           </p>
-          <p className="mt-1 text-slate-700">{outlet.supervisorName ?? "Supervisor belum terhubung"}</p>
+          <p className="mt-1 text-slate-700">{outlet.supervisorName ?? "-"}</p>
           <p className="mt-1 text-slate-600">Telp: {outlet.noTelpSpv ?? "-"}</p>
         </div>
         <div className="rounded-2xl bg-slate-50 px-3 py-3">
@@ -304,25 +237,17 @@ export function AssignmentManager({
   outlets: OutletView[];
   users: AssignableUser[];
 }) {
-  const [masterOutlets, setMasterOutlets] = useState(outlets);
   const [selectedUserId, setSelectedUserId] = useState(users[0]?.id ?? "");
   const [textareaValue, setTextareaValue] = useState("");
   const [outletQuery, setOutletQuery] = useState("");
-  const [selectedMasterDsuk, setSelectedMasterDsuk] = useState("");
-  const [dsukViewMode, setDsukViewMode] = useState<"matched" | "all">("matched");
-  const [territoryGroupFilter, setTerritoryGroupFilter] = useState("");
-  const [teamFilter, setTeamFilter] = useState("");
-  const [picFilter, setPicFilter] = useState("");
   const [removedQuery, setRemovedQuery] = useState("");
   const [removedCodes, setRemovedCodes] = useState<string[]>([]);
   const [assignments, setAssignments] = useState<AssignmentView[]>([]);
   const [submitResult, setSubmitResult] = useState<BulkAssignmentResult | null>(null);
-  const [catalogActionMessage, setCatalogActionMessage] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isDeletePending, startDeleteTransition] = useTransition();
-  const [isApplyPending, startApplyTransition] = useTransition();
   const [showInactiveHistory, setShowInactiveHistory] = useState(false);
   const deferredOutletQuery = useDeferredValue(outletQuery);
 
@@ -330,7 +255,7 @@ export function AssignmentManager({
   const selectedCodes = parseOutletCodes(textareaValue);
   const selectedCodeSet = new Set(selectedCodes);
   const removedCodeSet = new Set(removedCodes);
-  const outletByCode = new Map(masterOutlets.map((outlet) => [outlet.storeCode, outlet]));
+  const outletByCode = new Map(outlets.map((outlet) => [outlet.storeCode, outlet]));
 
   const selectedOutlets = selectedCodes
     .map((code) => outletByCode.get(code))
@@ -341,40 +266,9 @@ export function AssignmentManager({
     .filter((outlet): outlet is OutletView => Boolean(outlet));
 
   const normalizedQuery = deferredOutletQuery.trim().toLowerCase();
-  const searchedOutlets = masterOutlets.filter((outlet) => {
-    const districtDsuk = normalizeTerritoryGroup(outlet.district);
-    const territoryPicMapping =
-      getTerritoryPicMapping(outlet.district) ?? getTerritoryPicMapping(outlet.territoryGroup);
-
-    if (
-      selectedMasterDsuk &&
-      dsukViewMode === "matched" &&
-      districtDsuk !== selectedMasterDsuk
-    ) {
-      return false;
-    }
-
-    if (
-      territoryGroupFilter &&
-      (outlet.territoryGroup ?? "").trim().toUpperCase() !== territoryGroupFilter
-    ) {
-      return false;
-    }
-
-    if (teamFilter && territoryPicMapping?.teamName !== teamFilter) {
-      return false;
-    }
-
-    if (picFilter && (outlet.supervisorName ?? "") !== picFilter) {
-      return false;
-    }
-
-    if (!normalizedQuery) {
-      return true;
-    }
-
-    return buildOutletSearchText(outlet).includes(normalizedQuery);
-  });
+  const searchedOutlets = normalizedQuery
+    ? outlets.filter((outlet) => buildOutletSearchText(outlet).includes(normalizedQuery))
+    : outlets;
   const visibleOutlets = normalizedQuery ? searchedOutlets.slice(0, 80) : searchedOutlets.slice(0, 36);
   const normalizedRemovedQuery = removedQuery.trim().toLowerCase();
   const visibleRemovedCodes = normalizedRemovedQuery
@@ -397,18 +291,6 @@ export function AssignmentManager({
     (assignment) => !assignment.active && selectedCodeSet.has(assignment.kodeToko),
   ).length;
   const draftActiveCount = selectedCodes.length;
-  const territoryGroupOptions = TERRITORY_PIC_MAPPINGS.map((mapping) => mapping.territoryGroup);
-  const teamOptions = [...new Set(TERRITORY_PIC_MAPPINGS.map((mapping) => mapping.teamName))];
-  const picOptions = [
-    ...new Set(
-      masterOutlets
-        .map((outlet) => outlet.supervisorName?.trim() ?? "")
-        .filter((name) => name.length > 0),
-    ),
-  ].sort((left, right) => left.localeCompare(right));
-  const activeMasterMapping = selectedMasterDsuk
-    ? getTerritoryPicMapping(selectedMasterDsuk)
-    : null;
 
   function getDraftStateLabel(assignment: AssignmentView) {
     if (assignment.active) {
@@ -610,15 +492,6 @@ export function AssignmentManager({
     });
   }
 
-  function resolveDisplayMapping(
-    district: string | null | undefined,
-    territoryGroup: string | null | undefined,
-  ) {
-    return (
-      getTerritoryPicMapping(district) ?? getTerritoryPicMapping(territoryGroup)
-    );
-  }
-
   function handleAddAllFiltered() {
     if (searchedOutlets.length === 0) {
       return;
@@ -642,72 +515,6 @@ export function AssignmentManager({
     setSubmitError(null);
   }
 
-  function handleApplyDsukToMaster() {
-    if (!activeMasterMapping) {
-      setCatalogActionMessage("Pilih chip DSUK dulu sebelum update master outlet.");
-      return;
-    }
-
-    if (searchedOutlets.length === 0) {
-      setCatalogActionMessage("Tidak ada outlet pada hasil filter untuk di-update.");
-      return;
-    }
-
-    const targetCodes = searchedOutlets.map((outlet) => outlet.storeCode);
-    const targetCodeSet = new Set(targetCodes);
-
-    startApplyTransition(() => {
-      void (async () => {
-        try {
-          const response = await fetch("/api/admin/outlets/apply-dsuk", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              territoryGroup: activeMasterMapping.territoryGroup,
-              outletCodes: targetCodes,
-            }),
-          });
-          const payload = (await response.json().catch(() => ({}))) as ApplyDsukResult;
-
-          if (!response.ok) {
-            setCatalogActionMessage(payload.message ?? "Gagal update master outlet.");
-            return;
-          }
-
-          setMasterOutlets((currentOutlets) =>
-            currentOutlets.map((outlet) =>
-              targetCodeSet.has(outlet.storeCode)
-                ? {
-                    ...outlet,
-                    territoryGroup: payload.territoryGroup,
-                  }
-                : outlet,
-            ),
-          );
-          setAssignments((currentAssignments) =>
-            currentAssignments.map((assignment) =>
-              targetCodeSet.has(assignment.kodeToko)
-                ? {
-                    ...assignment,
-                    territoryGroup: payload.territoryGroup,
-                  }
-                : assignment,
-            ),
-          );
-          setCatalogActionMessage(
-            `Master outlet updated: ${payload.updatedCount} outlet disimpan ke ${payload.territoryGroup}.`,
-          );
-        } catch (error) {
-          setCatalogActionMessage(
-            error instanceof Error ? error.message : "Gagal update master outlet.",
-          );
-        }
-      })();
-    });
-  }
-
   function handleExportAssignments() {
     if (!selectedUser || assignments.length === 0) {
       return;
@@ -718,8 +525,6 @@ export function AssignmentManager({
       "Email",
       "Assignment Status",
       "Draft State",
-      "Team",
-      "PIC",
       "Kode Toko",
       "Nama Toko",
       "Alamat",
@@ -744,8 +549,6 @@ export function AssignmentManager({
         selectedUser.email,
         assignment.active ? "ACTIVE" : "INACTIVE",
         getDraftStateLabel(assignment),
-        resolveDisplayMapping(assignment.district, assignment.territoryGroup)?.teamName ?? "",
-        assignment.supervisorName ?? "",
         assignment.kodeToko,
         assignment.namaToko,
         assignment.alamat,
@@ -794,8 +597,6 @@ export function AssignmentManager({
       Email: selectedUser.email,
       "Assignment Status": assignment.active ? "ACTIVE" : "INACTIVE",
       "Draft State": getDraftStateLabel(assignment),
-      Team: resolveDisplayMapping(assignment.district, assignment.territoryGroup)?.teamName ?? "",
-      PIC: assignment.supervisorName ?? "",
       "Kode Toko": assignment.kodeToko,
       "Nama Toko": assignment.namaToko,
       Alamat: assignment.alamat,
@@ -884,12 +685,6 @@ export function AssignmentManager({
                   setAssignments([]);
                   setLoadError(null);
                   setTextareaValue("");
-                  setCatalogActionMessage(null);
-                  setSelectedMasterDsuk("");
-                  setDsukViewMode("matched");
-                  setTerritoryGroupFilter("");
-                  setTeamFilter("");
-                  setPicFilter("");
                   setRemovedCodes([]);
                   setRemovedQuery("");
                   setShowInactiveHistory(false);
@@ -937,10 +732,7 @@ export function AssignmentManager({
               <span>Cari Outlet</span>
               <input
                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-                onChange={(event) => {
-                  setOutletQuery(event.target.value);
-                  setCatalogActionMessage(null);
-                }}
+                onChange={(event) => setOutletQuery(event.target.value)}
                 placeholder="Cari kode toko, nama, alamat, kecamatan, territory, supervisor, koordinat"
                 value={outletQuery}
               />
@@ -1055,11 +847,6 @@ export function AssignmentManager({
                   );
                 }
 
-                const displayMapping = resolveDisplayMapping(
-                  outlet.district,
-                  outlet.territoryGroup,
-                );
-
                 return (
                   <OutletDetailCard
                     actionLabel="Remove"
@@ -1074,8 +861,7 @@ export function AssignmentManager({
                       kabupaten: outlet.regency,
                       district: outlet.district,
                       territory: outlet.territory,
-                      territoryGroup: displayMapping?.territoryGroup ?? outlet.territoryGroup,
-                      teamName: displayMapping?.teamName ?? null,
+                      territoryGroup: outlet.territoryGroup,
                       supervisorName: outlet.supervisorName,
                       noTelpSpv: outlet.supervisorPhone,
                       typeOutlet: outlet.typeOutlet,
@@ -1149,11 +935,6 @@ export function AssignmentManager({
                   );
                 }
 
-                const displayMapping = resolveDisplayMapping(
-                  outlet.district,
-                  outlet.territoryGroup,
-                );
-
                 return (
                   <OutletDetailCard
                     actionLabel="Restore"
@@ -1168,8 +949,7 @@ export function AssignmentManager({
                       kabupaten: outlet.regency,
                       district: outlet.district,
                       territory: outlet.territory,
-                      territoryGroup: displayMapping?.territoryGroup ?? outlet.territoryGroup,
-                      teamName: displayMapping?.teamName ?? null,
+                      territoryGroup: outlet.territoryGroup,
                       supervisorName: outlet.supervisorName,
                       noTelpSpv: outlet.supervisorPhone,
                       typeOutlet: outlet.typeOutlet,
@@ -1348,19 +1128,7 @@ export function AssignmentManager({
 
                         handleRestoreOutlet(assignment.kodeToko);
                       }}
-                      outlet={(() => {
-                        const displayMapping = resolveDisplayMapping(
-                          assignment.district,
-                          assignment.territoryGroup,
-                        );
-
-                        return {
-                          ...assignment,
-                          territoryGroup:
-                            displayMapping?.territoryGroup ?? assignment.territoryGroup,
-                          teamName: displayMapping?.teamName ?? null,
-                        };
-                      })()}
+                      outlet={assignment}
                     />
                     {!assignment.active ? (
                       <div className="flex justify-end">
@@ -1400,169 +1168,28 @@ export function AssignmentManager({
         </div>
 
         <p className="mt-3 text-sm leading-6 text-slate-600">
-          Chip DSUK di bawah membaca kolom <span className="font-semibold text-slate-900">Distrik</span>.
-          Kalau distrik outlet berisi `DSUK001` sampai `DSUK017`, sistem akan cocokkan
-          <span className="font-semibold text-slate-900"> team </span>dari kode DSUK itu.
-          PIC mengikuti nama <span className="font-semibold text-slate-900">Supervisor</span> outlet.
-          Tombol apply akan menulis DSUK tersebut ke <span className="font-semibold text-slate-900">group baru</span>
-          di master outlet.
+          Semua outlet hasil import tampil di katalog ini. Gunakan pencarian untuk menyaring data,
+          lalu tambahkan outlet yang dibutuhkan ke assignment field force.
         </p>
-
-        <div className="mt-4 space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <button
-              className={`rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] transition ${
-                selectedMasterDsuk === ""
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-cyan-700"
-              }`}
-              onClick={() => {
-                setSelectedMasterDsuk("");
-                setCatalogActionMessage(null);
-              }}
-              type="button"
-            >
-              Semua Distrik DSUK
-            </button>
-            {territoryGroupOptions.map((option) => (
-              <button
-                className={`rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] transition ${
-                  selectedMasterDsuk === option
-                    ? "border-cyan-700 bg-cyan-700 text-white"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-cyan-700"
-                }`}
-                key={option}
-                onClick={() => {
-                  setSelectedMasterDsuk(option);
-                  setCatalogActionMessage(null);
-                }}
-                type="button"
-              >
-                {option}
-              </button>
-            ))}
-          </div>
-          {selectedMasterDsuk ? (
-            <div className="flex flex-wrap gap-2">
-              <button
-                className={`rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] transition ${
-                  dsukViewMode === "matched"
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-cyan-700"
-                }`}
-                onClick={() => setDsukViewMode("matched")}
-                type="button"
-              >
-                Only Matched DSUK
-              </button>
-              <button
-                className={`rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] transition ${
-                  dsukViewMode === "all"
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-cyan-700"
-                }`}
-                onClick={() => setDsukViewMode("all")}
-                type="button"
-              >
-                Show All Outlet
-              </button>
-            </div>
-          ) : null}
-          {activeMasterMapping ? (
-            <div className="rounded-2xl bg-cyan-50 px-4 py-3 text-sm text-cyan-900">
-              Distrik DSUK aktif: <span className="font-semibold">{activeMasterMapping.territoryGroup}</span> •{" "}
-              Team: {activeMasterMapping.teamName} • PIC mengikuti supervisor outlet
-            </div>
-          ) : null}
-        </div>
-
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <label className="block space-y-2 text-sm font-medium text-slate-700">
-            <span>Filter Group Tersimpan</span>
-            <select
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-              onChange={(event) => {
-                setTerritoryGroupFilter(event.target.value);
-                setCatalogActionMessage(null);
-              }}
-              value={territoryGroupFilter}
-            >
-              <option value="">Semua Territory Group</option>
-              {territoryGroupOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block space-y-2 text-sm font-medium text-slate-700">
-            <span>Filter Team (by DSUK)</span>
-            <select
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-              onChange={(event) => {
-                setTeamFilter(event.target.value);
-                setCatalogActionMessage(null);
-              }}
-              value={teamFilter}
-            >
-              <option value="">Semua Team</option>
-              {teamOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block space-y-2 text-sm font-medium text-slate-700">
-            <span>Filter PIC / Supervisor</span>
-            <select
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-              onChange={(event) => {
-                setPicFilter(event.target.value);
-                setCatalogActionMessage(null);
-              }}
-              value={picFilter}
-            >
-              <option value="">Semua PIC</option>
-              {picOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
 
         <div className="mt-5 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
             <p>
-              Hasil filter saat ini: <span className="font-semibold text-slate-900">{searchedOutlets.length}</span> outlet
+              Master outlet tersedia: <span className="font-semibold text-slate-900">{searchedOutlets.length}</span> outlet
             </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                className="rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800 transition hover:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={searchedOutlets.length === 0}
-                onClick={handleAddAllFiltered}
-                type="button"
-              >
-                Add All Filtered
-              </button>
-              <button
-                className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:border-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isApplyPending || !activeMasterMapping || searchedOutlets.length === 0}
-                onClick={handleApplyDsukToMaster}
-                type="button"
-              >
-                {isApplyPending ? "Applying..." : "Apply DSUK To Master Outlet"}
-              </button>
-            </div>
+            <button
+              className="rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800 transition hover:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={searchedOutlets.length === 0}
+              onClick={handleAddAllFiltered}
+              type="button"
+            >
+              Add All Filtered
+            </button>
           </div>
 
-          {catalogActionMessage ? (
+          {normalizedQuery ? (
             <p className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
-              {catalogActionMessage}
+              Menampilkan hasil pencarian untuk <span className="font-semibold text-slate-900">&quot;{deferredOutletQuery.trim()}&quot;</span>.
             </p>
           ) : null}
 
@@ -1572,65 +1199,54 @@ export function AssignmentManager({
             </p>
           ) : (
             visibleOutlets.map((outlet) => (
-              (() => {
-                const displayMapping = resolveDisplayMapping(
-                  outlet.district,
-                  outlet.territoryGroup,
-                );
+              <OutletDetailCard
+                actionLabel={
+                  selectedCodeSet.has(outlet.storeCode)
+                    ? "Remove"
+                    : removedCodeSet.has(outlet.storeCode)
+                      ? "Restore"
+                      : "Add"
+                }
+                actionVariant={
+                  selectedCodeSet.has(outlet.storeCode)
+                    ? "remove"
+                    : removedCodeSet.has(outlet.storeCode)
+                      ? "restore"
+                      : "add"
+                }
+                key={outlet.id}
+                onAction={() => {
+                  if (selectedCodeSet.has(outlet.storeCode)) {
+                    handleRemoveOutlet(outlet.storeCode);
+                    return;
+                  }
 
-                return (
-                  <OutletDetailCard
-                    actionLabel={
-                      selectedCodeSet.has(outlet.storeCode)
-                        ? "Remove"
-                        : removedCodeSet.has(outlet.storeCode)
-                          ? "Restore"
-                          : "Add"
-                    }
-                    actionVariant={
-                      selectedCodeSet.has(outlet.storeCode)
-                        ? "remove"
-                        : removedCodeSet.has(outlet.storeCode)
-                          ? "restore"
-                          : "add"
-                    }
-                    key={outlet.id}
-                    onAction={() => {
-                      if (selectedCodeSet.has(outlet.storeCode)) {
-                        handleRemoveOutlet(outlet.storeCode);
-                        return;
-                      }
+                  if (removedCodeSet.has(outlet.storeCode)) {
+                    handleRestoreOutlet(outlet.storeCode);
+                    return;
+                  }
 
-                      if (removedCodeSet.has(outlet.storeCode)) {
-                        handleRestoreOutlet(outlet.storeCode);
-                        return;
-                      }
-
-                      handleAddOutlet(outlet.storeCode);
-                    }}
-                    outlet={{
-                      kodeToko: outlet.storeCode,
-                      namaToko: outlet.name,
-                      alamat: outlet.address,
-                      kecamatan: outlet.subdistrict,
-                      kabupaten: outlet.regency,
-                      district: outlet.district,
-                      territory: outlet.territory,
-                      territoryGroup:
-                        displayMapping?.territoryGroup ?? outlet.territoryGroup,
-                      teamName: displayMapping?.teamName ?? null,
-                      supervisorName: outlet.supervisorName,
-                      noTelpSpv: outlet.supervisorPhone,
-                      typeOutlet: outlet.typeOutlet,
-                      visualPposm: outlet.visualPposm,
-                      brand: outlet.brand,
-                      ukuran: outlet.size,
-                      lat: outlet.latitude,
-                      lon: outlet.longitude,
-                    }}
-                  />
-                );
-              })()
+                  handleAddOutlet(outlet.storeCode);
+                }}
+                outlet={{
+                  kodeToko: outlet.storeCode,
+                  namaToko: outlet.name,
+                  alamat: outlet.address,
+                  kecamatan: outlet.subdistrict,
+                  kabupaten: outlet.regency,
+                  district: outlet.district,
+                  territory: outlet.territory,
+                  territoryGroup: outlet.territoryGroup,
+                  supervisorName: outlet.supervisorName,
+                  noTelpSpv: outlet.supervisorPhone,
+                  typeOutlet: outlet.typeOutlet,
+                  visualPposm: outlet.visualPposm,
+                  brand: outlet.brand,
+                  ukuran: outlet.size,
+                  lat: outlet.latitude,
+                  lon: outlet.longitude,
+                }}
+              />
             ))
           )}
         </div>
