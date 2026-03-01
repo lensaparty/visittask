@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { FormEvent, useState, useTransition } from "react";
 import { OutletImportForm } from "@/components/outlet-import-form";
 
@@ -9,6 +10,7 @@ function formatLocalDate(date: Date) {
 }
 
 export function SupervisorTools() {
+  const router = useRouter();
   const [generateMessage, setGenerateMessage] = useState<string | null>(null);
   const [range, setRange] = useState({
     from: formatLocalDate(new Date()),
@@ -16,8 +18,7 @@ export function SupervisorTools() {
   });
   const [isPending, startTransition] = useTransition();
 
-  function handleGenerate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function runGenerate(nextRange: { from: string; to: string }) {
     setGenerateMessage(null);
 
     startTransition(() => {
@@ -28,7 +29,7 @@ export function SupervisorTools() {
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify(range),
+            body: JSON.stringify(nextRange),
           });
 
           const payload = (await response.json().catch(() => ({}))) as {
@@ -45,6 +46,7 @@ export function SupervisorTools() {
           setGenerateMessage(
             `Created ${payload.created ?? 0} tasks, skipped ${payload.skipped ?? 0}.`,
           );
+          router.refresh();
         } catch (generateError) {
           setGenerateMessage(
             generateError instanceof Error
@@ -54,6 +56,22 @@ export function SupervisorTools() {
         }
       })();
     });
+  }
+
+  function handleGenerate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    runGenerate(range);
+  }
+
+  function handleGenerateToday() {
+    const today = formatLocalDate(new Date());
+    const todayRange = {
+      from: today,
+      to: today,
+    };
+
+    setRange(todayRange);
+    runGenerate(todayRange);
   }
 
   return (
@@ -67,6 +85,20 @@ export function SupervisorTools() {
         <h2 className="mt-2 text-2xl font-semibold text-slate-900">
           Generate task date range
         </h2>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          Gunakan tombol cepat untuk generate task hari ini, atau pilih rentang tanggal kalau mau
+          generate beberapa hari sekaligus.
+        </p>
+        <div className="mt-4">
+          <button
+            className="w-full rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm font-semibold text-cyan-800 transition hover:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-70"
+            disabled={isPending}
+            onClick={handleGenerateToday}
+            type="button"
+          >
+            {isPending ? "Working..." : "Generate Hari Ini"}
+          </button>
+        </div>
         <form className="mt-5 space-y-4" onSubmit={handleGenerate}>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="space-y-2 text-sm font-medium text-slate-700">
