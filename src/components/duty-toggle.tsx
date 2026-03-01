@@ -7,6 +7,7 @@ import {
   useEffectEvent,
   useRef,
   useState,
+  useSyncExternalStore,
   useTransition,
 } from "react";
 
@@ -103,12 +104,21 @@ export function DutyToggle({
   initialActiveSessionId: string | null;
 }) {
   const router = useRouter();
-  const hasGeolocation =
-    typeof navigator !== "undefined" && "geolocation" in navigator;
-  const isSecureOrigin =
-    typeof window !== "undefined" && window.isSecureContext;
-  const currentOrigin =
-    typeof window !== "undefined" ? window.location.origin : null;
+  const hasGeolocation = useSyncExternalStore(
+    () => () => {},
+    () => "geolocation" in navigator,
+    () => false,
+  );
+  const isSecureOrigin = useSyncExternalStore(
+    () => () => {},
+    () => window.isSecureContext,
+    () => false,
+  );
+  const currentOrigin = useSyncExternalStore(
+    () => () => {},
+    () => window.location.origin,
+    () => null,
+  );
   const [activeSessionId, setActiveSessionId] = useState(initialActiveSessionId);
   const [latestPosition, setLatestPosition] = useState<PingPayload | null>(null);
   const [lastSentAt, setLastSentAt] = useState<string | null>(null);
