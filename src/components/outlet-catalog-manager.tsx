@@ -46,6 +46,8 @@ type OutletCatalogView = {
   longitude: number;
 };
 
+const CATALOG_PAGE_SIZE = 12;
+
 function formatCoordinate(value: number) {
   return value.toFixed(6);
 }
@@ -178,7 +180,8 @@ export function OutletCatalogManager({
   const [selectedUserId, setSelectedUserId] = useState("");
   const [savedAssignedCodes, setSavedAssignedCodes] = useState<string[]>([]);
   const [draftAssignedCodes, setDraftAssignedCodes] = useState<string[]>([]);
-  const [catalogVisibleCount, setCatalogVisibleCount] = useState(12);
+  const [showDraftedOutlets, setShowDraftedOutlets] = useState(false);
+  const [catalogPage, setCatalogPage] = useState(1);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [assignFeedback, setAssignFeedback] = useState<string | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
@@ -291,7 +294,24 @@ export function OutletCatalogManager({
   const availableOutlets = sortedOutlets.filter(
     (outlet) => !draftAssignedCodeSet.has(outlet.storeCode),
   );
-  const visibleOutlets = availableOutlets.slice(0, catalogVisibleCount);
+  const catalogOutlets = showDraftedOutlets ? sortedOutlets : availableOutlets;
+  const totalCatalogPages = Math.max(1, Math.ceil(catalogOutlets.length / CATALOG_PAGE_SIZE));
+  const safeCatalogPage = Math.min(catalogPage, totalCatalogPages);
+  const visibleOutlets = catalogOutlets.slice(
+    (safeCatalogPage - 1) * CATALOG_PAGE_SIZE,
+    safeCatalogPage * CATALOG_PAGE_SIZE,
+  );
+  const pageNumbers = Array.from(
+    new Set([
+      1,
+      Math.max(1, safeCatalogPage - 2),
+      Math.max(1, safeCatalogPage - 1),
+      safeCatalogPage,
+      Math.min(totalCatalogPages, safeCatalogPage + 1),
+      Math.min(totalCatalogPages, safeCatalogPage + 2),
+      totalCatalogPages,
+    ]),
+  ).sort((left, right) => left - right);
 
   useEffect(() => {
     if (!selectedUserId) {
@@ -326,12 +346,12 @@ export function OutletCatalogManager({
 
         setSavedAssignedCodes(nextActiveCodes);
         setDraftAssignedCodes(nextActiveCodes);
-        setCatalogVisibleCount(12);
+        setCatalogPage(1);
       } catch (error) {
         if (!cancelled) {
           setSavedAssignedCodes([]);
           setDraftAssignedCodes([]);
-          setCatalogVisibleCount(12);
+          setCatalogPage(1);
           setLoadError(error instanceof Error ? error.message : "Unable to load assignments.");
         }
       }
@@ -348,7 +368,7 @@ export function OutletCatalogManager({
     }
 
     setDraftAssignedCodes((currentCodes) => [...currentCodes, storeCode]);
-    setCatalogVisibleCount(12);
+    setCatalogPage(1);
     setAssignError(null);
     setAssignFeedback(null);
   }
@@ -357,7 +377,7 @@ export function OutletCatalogManager({
     setDraftAssignedCodes((currentCodes) =>
       currentCodes.filter((code) => code !== storeCode),
     );
-    setCatalogVisibleCount(12);
+    setCatalogPage(1);
     setAssignError(null);
     setAssignFeedback(null);
   }
@@ -376,7 +396,7 @@ export function OutletCatalogManager({
     }
 
     setDraftAssignedCodes(mergedCodes);
-    setCatalogVisibleCount(12);
+    setCatalogPage(1);
     setAssignError(null);
     setAssignFeedback(null);
   }
@@ -391,7 +411,7 @@ export function OutletCatalogManager({
     setDraftAssignedCodes((currentCodes) =>
       currentCodes.filter((code) => !filteredCodeSet.has(code)),
     );
-    setCatalogVisibleCount(12);
+    setCatalogPage(1);
     setAssignError(null);
     setAssignFeedback(null);
   }
@@ -471,7 +491,7 @@ export function OutletCatalogManager({
                 setSelectedUserId(event.target.value);
                 setSavedAssignedCodes([]);
                 setDraftAssignedCodes([]);
-                setCatalogVisibleCount(12);
+                setCatalogPage(1);
                 setLoadError(null);
                 setAssignError(null);
                 setAssignFeedback(null);
@@ -608,7 +628,7 @@ export function OutletCatalogManager({
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
             onChange={(event) => {
               setQuery(event.target.value);
-              setCatalogVisibleCount(12);
+              setCatalogPage(1);
             }}
             placeholder="Cari kode toko, nama, alamat, kecamatan, group, supervisor, koordinat"
             value={query}
@@ -623,7 +643,7 @@ export function OutletCatalogManager({
               onChange={(event) => {
                 setRegencyFilter(event.target.value);
                 setSubdistrictFilter("");
-                setCatalogVisibleCount(12);
+                setCatalogPage(1);
               }}
               value={regencyFilter}
             >
@@ -642,7 +662,7 @@ export function OutletCatalogManager({
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
               onChange={(event) => {
                 setSubdistrictFilter(event.target.value);
-                setCatalogVisibleCount(12);
+                setCatalogPage(1);
               }}
               value={subdistrictFilter}
             >
@@ -661,7 +681,7 @@ export function OutletCatalogManager({
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
               onChange={(event) => {
                 setTerritoryFilter(event.target.value);
-                setCatalogVisibleCount(12);
+                setCatalogPage(1);
               }}
               value={territoryFilter}
             >
@@ -680,7 +700,7 @@ export function OutletCatalogManager({
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
               onChange={(event) => {
                 setGroupFilter(event.target.value);
-                setCatalogVisibleCount(12);
+                setCatalogPage(1);
               }}
               value={groupFilter}
             >
@@ -697,12 +717,10 @@ export function OutletCatalogManager({
             <span>Urutkan</span>
             <select
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-              onChange={(event) =>
-                {
-                  setSortBy(event.target.value as "address" | "code" | "territory" | "group");
-                  setCatalogVisibleCount(12);
-                }
-              }
+              onChange={(event) => {
+                setSortBy(event.target.value as "address" | "code" | "territory" | "group");
+                setCatalogPage(1);
+              }}
               value={sortBy}
             >
               <option value="address">Alamat</option>
@@ -716,13 +734,31 @@ export function OutletCatalogManager({
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
           <p>
             Pilihan outlet tersedia:{" "}
-            <span className="font-semibold text-slate-900">{availableOutlets.length}</span> outlet
+            <span className="font-semibold text-slate-900">{catalogOutlets.length}</span> outlet
           </p>
-          <p className="text-xs text-slate-500">
-            {!selectedUser
-              ? "Pilih field force dulu supaya tombol action aktif."
-              : "Outlet yang sudah di-add disembunyikan dari daftar pilihan. Tekan Save Assignment untuk menyimpan."}
-          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              className={`rounded-2xl border px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] transition ${
+                showDraftedOutlets
+                  ? "border-cyan-200 bg-cyan-50 text-cyan-800 hover:border-cyan-300"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+              }`}
+              onClick={() => {
+                setShowDraftedOutlets((currentValue) => !currentValue);
+                setCatalogPage(1);
+              }}
+              type="button"
+            >
+              {showDraftedOutlets ? "Sembunyikan Yang Di-Add" : "Tampilkan Yang Di-Add"}
+            </button>
+            <p className="text-xs text-slate-500">
+              {!selectedUser
+                ? "Pilih field force dulu supaya tombol action aktif."
+                : showDraftedOutlets
+                  ? "Daftar sekarang menampilkan outlet draft dan yang belum dipilih."
+                  : "Outlet yang sudah di-add disembunyikan dari daftar pilihan."}
+            </p>
+          </div>
         </div>
       </section>
 
@@ -780,57 +816,84 @@ export function OutletCatalogManager({
         ) : (
           <div className="space-y-4">
             {visibleOutlets.map((outlet) => {
-                const isInSavedAssignment = savedAssignedCodeSet.has(outlet.storeCode);
-                const isInDraftAssignment = draftAssignedCodeSet.has(outlet.storeCode);
-                const actionLabel = isInDraftAssignment
-                  ? "Remove"
-                  : isInSavedAssignment
-                    ? "Restore"
-                    : "Add";
-                const actionVariant = isInDraftAssignment
-                  ? "remove"
-                  : isInSavedAssignment
-                    ? "restore"
-                    : "add";
+              const isInSavedAssignment = savedAssignedCodeSet.has(outlet.storeCode);
+              const isInDraftAssignment = draftAssignedCodeSet.has(outlet.storeCode);
+              const actionLabel = isInDraftAssignment
+                ? "Remove"
+                : isInSavedAssignment
+                  ? "Restore"
+                  : "Add";
+              const actionVariant = isInDraftAssignment
+                ? "remove"
+                : isInSavedAssignment
+                  ? "restore"
+                  : "add";
 
-                return (
-                  <OutletCatalogCard
-                    actionDisabled={isAssignPending || !selectedUser}
-                    actionLabel={actionLabel}
-                    actionVariant={actionVariant}
-                    key={outlet.id}
-                    onAction={() => {
-                      if (isInDraftAssignment) {
-                        handleUnstageOutlet(outlet.storeCode);
-                        return;
-                      }
+              return (
+                <OutletCatalogCard
+                  actionDisabled={isAssignPending || !selectedUser}
+                  actionLabel={actionLabel}
+                  actionVariant={actionVariant}
+                  key={outlet.id}
+                  onAction={() => {
+                    if (isInDraftAssignment) {
+                      handleUnstageOutlet(outlet.storeCode);
+                      return;
+                    }
 
-                      if (isInSavedAssignment) {
-                        handleRestoreOutlet(outlet.storeCode);
-                        return;
-                      }
+                    if (isInSavedAssignment) {
+                      handleRestoreOutlet(outlet.storeCode);
+                      return;
+                    }
 
-                      handleStageOutlet(outlet.storeCode);
-                    }}
-                    outlet={outlet}
-                  />
-                );
-              })}
+                    handleStageOutlet(outlet.storeCode);
+                  }}
+                  outlet={outlet}
+                />
+              );
+            })}
           </div>
         )}
 
-        {availableOutlets.length > visibleOutlets.length ? (
+        {catalogOutlets.length > CATALOG_PAGE_SIZE ? (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-slate-500">
-              Menampilkan {visibleOutlets.length} dari {availableOutlets.length} outlet pilihan.
+              Halaman {safeCatalogPage} dari {totalCatalogPages}. Menampilkan {visibleOutlets.length} outlet di halaman ini.
             </p>
-            <button
-              className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
-              onClick={() => setCatalogVisibleCount((currentCount) => currentCount + 12)}
-              type="button"
-            >
-              Load More
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={safeCatalogPage === 1}
+                onClick={() => setCatalogPage((currentPage) => Math.max(1, currentPage - 1))}
+                type="button"
+              >
+                Prev
+              </button>
+              {pageNumbers.map((pageNumber) => (
+                <button
+                  className={`rounded-2xl border px-3 py-2 text-sm font-semibold transition ${
+                    pageNumber === safeCatalogPage
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                  }`}
+                  key={pageNumber}
+                  onClick={() => setCatalogPage(pageNumber)}
+                  type="button"
+                >
+                  {pageNumber}
+                </button>
+              ))}
+              <button
+                className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={safeCatalogPage === totalCatalogPages}
+                onClick={() =>
+                  setCatalogPage((currentPage) => Math.min(totalCatalogPages, currentPage + 1))
+                }
+                type="button"
+              >
+                Next
+              </button>
+            </div>
           </div>
         ) : null}
       </section>
