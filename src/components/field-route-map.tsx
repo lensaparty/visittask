@@ -3,12 +3,14 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   CircleMarker,
+  Marker,
   MapContainer,
   Polyline,
   Popup,
   TileLayer,
   useMap,
 } from "react-leaflet";
+import { divIcon } from "leaflet";
 
 type RouteStop = {
   order: number;
@@ -120,6 +122,17 @@ export function FieldRouteMap({
     ...(userPosition ? [[userPosition.lat, userPosition.lon] as [number, number]] : []),
     ...stops.map((stop) => [stop.lat, stop.lon] as [number, number]),
   ];
+  const numberedIcons = new Map(
+    stops.map((stop) => [
+      stop.kodeToko,
+      divIcon({
+        className: "field-route-marker",
+        html: `<div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:9999px;background:#0f766e;color:#ffffff;font-size:12px;font-weight:700;border:2px solid #ccfbf1;">${stop.order}</div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+      }),
+    ]),
+  );
 
   return (
     <div className="space-y-3">
@@ -146,11 +159,10 @@ export function FieldRouteMap({
           ) : null}
 
           {stops.map((stop) => (
-            <CircleMarker
-              center={[stop.lat, stop.lon]}
+            <Marker
+              icon={numberedIcons.get(stop.kodeToko)}
               key={stop.kodeToko}
-              pathOptions={{ color: "#0f766e", fillColor: "#14b8a6" }}
-              radius={9}
+              position={[stop.lat, stop.lon]}
             >
               <Popup>
                 <strong>
@@ -161,7 +173,7 @@ export function FieldRouteMap({
                 <br />
                 {stop.alamat}
               </Popup>
-            </CircleMarker>
+            </Marker>
           ))}
         </MapContainer>
       </div>
