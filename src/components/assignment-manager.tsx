@@ -209,10 +209,10 @@ function OutletDetailCard({
         </div>
         <div className="rounded-2xl bg-cyan-50 px-3 py-3">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">
-            PIC Mapping
+            PIC by DSUK
           </p>
-          <p className="mt-1 text-slate-700">{outlet.teamName ?? "-"}</p>
-          <p className="mt-1 text-slate-600">{outlet.picName ?? "-"}</p>
+          <p className="mt-1 text-slate-700">{outlet.teamName ?? "Belum ada mapping"}</p>
+          <p className="mt-1 text-slate-600">{outlet.picName ?? "Cocokkan dari territory group"}</p>
         </div>
         <div className="rounded-2xl bg-slate-50 px-3 py-3">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -768,56 +768,6 @@ export function AssignmentManager({
               />
             </label>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              <label className="block space-y-2 text-sm font-medium text-slate-700">
-                <span>Filter Territory Group</span>
-                <select
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-                  onChange={(event) => setTerritoryGroupFilter(event.target.value)}
-                  value={territoryGroupFilter}
-                >
-                  <option value="">Semua Territory Group</option>
-                  {territoryGroupOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block space-y-2 text-sm font-medium text-slate-700">
-                <span>Filter Team</span>
-                <select
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-                  onChange={(event) => setTeamFilter(event.target.value)}
-                  value={teamFilter}
-                >
-                  <option value="">Semua Team</option>
-                  {teamOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="block space-y-2 text-sm font-medium text-slate-700">
-                <span>Filter PIC</span>
-                <select
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-                  onChange={(event) => setPicFilter(event.target.value)}
-                  value={picFilter}
-                >
-                  <option value="">Semua PIC</option>
-                  {picOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
             <label className="block space-y-2 text-sm font-medium text-slate-700">
               <span>Kode Toko Terpilih</span>
               <textarea
@@ -1255,6 +1205,62 @@ export function AssignmentManager({
               ? `Hasil pencarian "${deferredOutletQuery.trim()}"`
               : "Urutan default: kabupaten, kecamatan, alamat, lalu koordinat"}
           </p>
+        </div>
+
+        <p className="mt-3 text-sm leading-6 text-slate-600">
+          Filter team dan PIC di bawah ini bukan berasal dari data outlet asli. Nilainya diturunkan dari
+          kode <span className="font-semibold text-slate-900">territory group DSUK</span> yang dicocokkan
+          ke mapping PIC.
+        </p>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <label className="block space-y-2 text-sm font-medium text-slate-700">
+            <span>Filter Territory Group (DSUK)</span>
+            <select
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => setTerritoryGroupFilter(event.target.value)}
+              value={territoryGroupFilter}
+            >
+              <option value="">Semua Territory Group</option>
+              {territoryGroupOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block space-y-2 text-sm font-medium text-slate-700">
+            <span>Filter Team (by DSUK)</span>
+            <select
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => setTeamFilter(event.target.value)}
+              value={teamFilter}
+            >
+              <option value="">Semua Team</option>
+              {teamOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block space-y-2 text-sm font-medium text-slate-700">
+            <span>Filter PIC (by DSUK)</span>
+            <select
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => setPicFilter(event.target.value)}
+              value={picFilter}
+            >
+              <option value="">Semua PIC</option>
+              {picOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         <div className="mt-5 space-y-4">
