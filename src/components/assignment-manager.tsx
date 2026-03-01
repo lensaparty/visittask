@@ -4,6 +4,7 @@ import { FormEvent, useDeferredValue, useEffect, useState, useTransition } from 
 import { AssignmentPreviewMap } from "@/components/assignment-preview-map";
 import {
   getTerritoryPicMapping,
+  normalizeTerritoryGroup,
   TERRITORY_PIC_MAPPINGS,
 } from "@/lib/territory-pic-map";
 
@@ -110,7 +111,8 @@ function escapeCsvField(value: string | number | null | undefined) {
 }
 
 function buildOutletSearchText(outlet: OutletView) {
-  const territoryPicMapping = getTerritoryPicMapping(outlet.territoryGroup);
+  const territoryPicMapping =
+    getTerritoryPicMapping(outlet.district) ?? getTerritoryPicMapping(outlet.territoryGroup);
 
   return [
     outlet.storeCode,
@@ -297,7 +299,13 @@ export function AssignmentManager({
 
   const normalizedQuery = deferredOutletQuery.trim().toLowerCase();
   const searchedOutlets = masterOutlets.filter((outlet) => {
-    const territoryPicMapping = getTerritoryPicMapping(outlet.territoryGroup);
+    const districtDsuk = normalizeTerritoryGroup(outlet.district);
+    const territoryPicMapping =
+      getTerritoryPicMapping(outlet.district) ?? getTerritoryPicMapping(outlet.territoryGroup);
+
+    if (selectedMasterDsuk && districtDsuk !== selectedMasterDsuk) {
+      return false;
+    }
 
     if (
       territoryGroupFilter &&
@@ -549,8 +557,15 @@ export function AssignmentManager({
     });
   }
 
-  function resolveDisplayMapping(territoryGroup: string | null | undefined) {
-    return activeMasterMapping ?? getTerritoryPicMapping(territoryGroup);
+  function resolveDisplayMapping(
+    district: string | null | undefined,
+    territoryGroup: string | null | undefined,
+  ) {
+    return (
+      activeMasterMapping ??
+      getTerritoryPicMapping(district) ??
+      getTerritoryPicMapping(territoryGroup)
+    );
   }
 
   function handleAddAllFiltered() {
@@ -988,7 +1003,10 @@ export function AssignmentManager({
                   );
                 }
 
-                const displayMapping = resolveDisplayMapping(outlet.territoryGroup);
+                const displayMapping = resolveDisplayMapping(
+                  outlet.district,
+                  outlet.territoryGroup,
+                );
 
                 return (
                   <OutletDetailCard
@@ -1080,7 +1098,10 @@ export function AssignmentManager({
                   );
                 }
 
-                const displayMapping = resolveDisplayMapping(outlet.territoryGroup);
+                const displayMapping = resolveDisplayMapping(
+                  outlet.district,
+                  outlet.territoryGroup,
+                );
 
                 return (
                   <OutletDetailCard
@@ -1279,6 +1300,7 @@ export function AssignmentManager({
                       }}
                       outlet={(() => {
                         const displayMapping = resolveDisplayMapping(
+                          assignment.district,
                           assignment.territoryGroup,
                         );
 
@@ -1329,9 +1351,10 @@ export function AssignmentManager({
         </div>
 
         <p className="mt-3 text-sm leading-6 text-slate-600">
-          Filter team dan PIC di bawah ini bukan berasal dari data outlet asli. Nilainya diturunkan dari
-          kode <span className="font-semibold text-slate-900">territory group DSUK</span> yang dicocokkan
-          ke mapping PIC.
+          Chip DSUK di bawah membaca kolom <span className="font-semibold text-slate-900">Distrik</span>.
+          Kalau distrik outlet berisi `DSUK001` sampai `DSUK017`, sistem akan cocokkan team dan PIC dari
+          kode DSUK itu. Tombol apply akan menulis DSUK tersebut ke <span className="font-semibold text-slate-900">group baru</span>
+          di master outlet.
         </p>
 
         <div className="mt-4 space-y-3">
@@ -1348,7 +1371,7 @@ export function AssignmentManager({
               }}
               type="button"
             >
-              Semua DSUK
+              Semua Distrik DSUK
             </button>
             {territoryGroupOptions.map((option) => (
               <button
@@ -1370,7 +1393,7 @@ export function AssignmentManager({
           </div>
           {activeMasterMapping ? (
             <div className="rounded-2xl bg-cyan-50 px-4 py-3 text-sm text-cyan-900">
-              Master DSUK aktif: <span className="font-semibold">{activeMasterMapping.territoryGroup}</span> •{" "}
+              Distrik DSUK aktif: <span className="font-semibold">{activeMasterMapping.territoryGroup}</span> •{" "}
               {activeMasterMapping.teamName} • {activeMasterMapping.picName}
             </div>
           ) : null}
@@ -1378,7 +1401,7 @@ export function AssignmentManager({
 
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           <label className="block space-y-2 text-sm font-medium text-slate-700">
-            <span>Filter Territory Group (DSUK)</span>
+            <span>Filter Group Tersimpan</span>
             <select
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
               onChange={(event) => {
@@ -1473,7 +1496,10 @@ export function AssignmentManager({
           ) : (
             visibleOutlets.map((outlet) => (
               (() => {
-                const displayMapping = resolveDisplayMapping(outlet.territoryGroup);
+                const displayMapping = resolveDisplayMapping(
+                  outlet.district,
+                  outlet.territoryGroup,
+                );
 
                 return (
                   <OutletDetailCard
