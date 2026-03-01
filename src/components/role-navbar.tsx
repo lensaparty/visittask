@@ -11,7 +11,7 @@ type NavItem = {
 
 function itemClasses(active: boolean) {
   return active
-    ? "bg-slate-900 text-white shadow-sm"
+    ? "border border-slate-900 bg-slate-900 text-white shadow-sm hover:bg-slate-800 hover:text-white"
     : "border border-slate-200 bg-white text-slate-700 hover:border-cyan-300 hover:text-cyan-700";
 }
 
@@ -45,7 +45,8 @@ export function RoleNavbar({
 
         return (
           <Link
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition ${itemClasses(active)}`}
+            aria-current={active ? "page" : undefined}
+            className={`inline-flex min-w-[6.75rem] shrink-0 items-center justify-center rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap transition ${itemClasses(active)}`}
             href={item.href}
             key={item.href}
           >
