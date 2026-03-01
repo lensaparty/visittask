@@ -1,6 +1,7 @@
 import { UserRole } from "@prisma/client";
 import Link from "next/link";
 import { DutyToggle } from "@/components/duty-toggle";
+import { distanceInMeters } from "@/lib/geo";
 import { prisma } from "@/lib/prisma";
 import { scheduleDayLabel, startOfUtcDay } from "@/lib/schedule";
 import { requireUser } from "@/lib/session";
@@ -12,14 +13,19 @@ import {
 } from "@/lib/task-status";
 
 type TaskFilter = CanonicalTaskStatus | "ALL";
-type TaskSort = "name" | "territory" | "status";
+type TaskSort = "name" | "territory" | "status" | "nearest";
 
 function isTaskFilter(value: string): value is TaskFilter {
   return value === "ALL" || value === "PENDING" || value === "IN_PROGRESS" || value === "DONE" || value === "MISSED";
 }
 
 function isTaskSort(value: string): value is TaskSort {
-  return value === "name" || value === "territory" || value === "status";
+  return (
+    value === "name" ||
+    value === "territory" ||
+    value === "status" ||
+    value === "nearest"
+  );
 }
 
 function buildTasksTodayHref(filter: TaskFilter, sort: TaskSort) {
@@ -79,30 +85,57 @@ export async function TasksTodayPageContent({
   ]);
 
   const allTasks = [...taskRows];
+  const hasLastKnownLocation = user.lastKnownLat != null && user.lastKnownLon != null;
+  const tasksWithMeta = allTasks.map((task) => ({
+    task,
+    canonicalStatus: toCanonicalTaskStatus(task.status),
+    distanceM: hasLastKnownLocation
+      ? distanceInMeters(
+          user.lastKnownLat as number,
+          user.lastKnownLon as number,
+          task.outlet.latitude,
+          task.outlet.longitude,
+        )
+      : null,
+  }));
   const taskSummary = {
-    ALL: allTasks.length,
-    PENDING: allTasks.filter((task) => toCanonicalTaskStatus(task.status) === "PENDING").length,
-    IN_PROGRESS: allTasks.filter((task) => toCanonicalTaskStatus(task.status) === "IN_PROGRESS").length,
-    DONE: allTasks.filter((task) => toCanonicalTaskStatus(task.status) === "DONE").length,
-    MISSED: allTasks.filter((task) => toCanonicalTaskStatus(task.status) === "MISSED").length,
+    ALL: tasksWithMeta.length,
+    PENDING: tasksWithMeta.filter((task) => task.canonicalStatus === "PENDING").length,
+    IN_PROGRESS: tasksWithMeta.filter((task) => task.canonicalStatus === "IN_PROGRESS").length,
+    DONE: tasksWithMeta.filter((task) => task.canonicalStatus === "DONE").length,
+    MISSED: tasksWithMeta.filter((task) => task.canonicalStatus === "MISSED").length,
   } as const;
 
   const filteredTasks =
     activeFilter === "ALL"
-      ? allTasks
-      : allTasks.filter((task) => toCanonicalTaskStatus(task.status) === activeFilter);
+      ? tasksWithMeta
+      : tasksWithMeta.filter((task) => task.canonicalStatus === activeFilter);
 
   const tasks = [...filteredTasks].sort((left, right) => {
+    if (activeSort === "nearest") {
+      if (left.distanceM != null && right.distanceM != null) {
+        return left.distanceM - right.distanceM;
+      }
+
+      if (left.distanceM != null) {
+        return -1;
+      }
+
+      if (right.distanceM != null) {
+        return 1;
+      }
+    }
+
     if (activeSort === "territory") {
       const leftKey = [
-        left.outlet.territory ?? "",
-        left.outlet.name,
-        left.outlet.address,
+        left.task.outlet.territory ?? "",
+        left.task.outlet.name,
+        left.task.outlet.address,
       ].join("|");
       const rightKey = [
-        right.outlet.territory ?? "",
-        right.outlet.name,
-        right.outlet.address,
+        right.task.outlet.territory ?? "",
+        right.task.outlet.name,
+        right.task.outlet.address,
       ].join("|");
 
       return leftKey.localeCompare(rightKey);
@@ -110,20 +143,20 @@ export async function TasksTodayPageContent({
 
     if (activeSort === "status") {
       const leftKey = [
-        toCanonicalTaskStatus(left.status),
-        left.outlet.name,
-        left.outlet.address,
+        left.canonicalStatus,
+        left.task.outlet.name,
+        left.task.outlet.address,
       ].join("|");
       const rightKey = [
-        toCanonicalTaskStatus(right.status),
-        right.outlet.name,
-        right.outlet.address,
+        right.canonicalStatus,
+        right.task.outlet.name,
+        right.task.outlet.address,
       ].join("|");
 
       return leftKey.localeCompare(rightKey);
     }
 
-    return left.outlet.name.localeCompare(right.outlet.name);
+    return left.task.outlet.name.localeCompare(right.task.outlet.name);
   });
 
   return (
@@ -176,7 +209,7 @@ export async function TasksTodayPageContent({
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
               Filter Status
             </p>
-            <div className="-mx-1 mt-2 flex gap-2 overflow-x-auto px-1 pb-1">
+            <div className="mt-2 flex flex-wrap gap-2">
               {(["ALL", "PENDING", "IN_PROGRESS", "DONE", "MISSED"] as TaskFilter[]).map(
                 (filterOption) => (
                   <Link
@@ -201,11 +234,12 @@ export async function TasksTodayPageContent({
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
               Sort
             </p>
-            <div className="-mx-1 mt-2 flex gap-2 overflow-x-auto px-1 pb-1">
+            <div className="mt-2 flex flex-wrap gap-2">
               {([
                 ["name", "Nama Outlet"],
                 ["territory", "Territory"],
                 ["status", "Status"],
+                ["nearest", hasLastKnownLocation ? "Terdekat" : "Terdekat (Need Ping)"],
               ] as const).map(([sortOption, label]) => (
                 <Link
                   className={`inline-flex shrink-0 rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition ${
@@ -232,22 +266,22 @@ export async function TasksTodayPageContent({
             </div>
           ) : (
             tasks.map((task) => {
-              const canonicalStatus = toCanonicalTaskStatus(task.status);
+              const canonicalStatus = task.canonicalStatus;
 
               return (
                 <Link
                   className="block rounded-2xl border border-slate-200 px-4 py-4 transition hover:border-cyan-300 hover:bg-cyan-50/60"
-                  href={`/tasks/${task.id}`}
-                  key={task.id}
+                  href={`/tasks/${task.task.id}`}
+                  key={task.task.id}
                 >
                   <div className="flex flex-col gap-3">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="space-y-1">
                         <p className="text-lg font-semibold text-slate-900">
-                          {task.outlet.name}
+                          {task.task.outlet.name}
                         </p>
                         <p className="text-sm text-slate-600">
-                          {task.outlet.storeCode} • {task.outlet.address}
+                          {task.task.outlet.storeCode} • {task.task.outlet.address}
                         </p>
                       </div>
                       <span
@@ -263,7 +297,7 @@ export async function TasksTodayPageContent({
                           Territory
                         </p>
                         <p className="mt-1 text-sm font-medium text-slate-900">
-                          {task.outlet.territory ?? "-"}
+                          {task.task.outlet.territory ?? "-"}
                         </p>
                       </div>
                       <div className="rounded-2xl bg-slate-100 px-3 py-2 text-xs text-slate-600">
@@ -271,15 +305,17 @@ export async function TasksTodayPageContent({
                           Schedule
                         </p>
                         <p className="mt-1 text-sm font-medium text-slate-900">
-                          {scheduleDayLabel(task.scheduleDay)}
+                          {scheduleDayLabel(task.task.scheduleDay)}
                         </p>
                       </div>
                       <div className="rounded-2xl bg-slate-100 px-3 py-2 text-xs text-slate-600">
                         <p className="font-semibold uppercase tracking-[0.14em] text-slate-500">
-                          Area
+                          {hasLastKnownLocation ? "Distance" : "Area"}
                         </p>
                         <p className="mt-1 text-sm font-medium text-slate-900">
-                          {task.outlet.subdistrict ?? "-"}
+                          {hasLastKnownLocation && task.distanceM != null
+                            ? `${Math.round(task.distanceM)} m`
+                            : (task.task.outlet.subdistrict ?? "-")}
                         </p>
                       </div>
                     </div>

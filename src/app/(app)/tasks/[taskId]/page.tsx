@@ -6,7 +6,10 @@ import { TaskMap } from "@/components/task-map";
 import { prisma } from "@/lib/prisma";
 import { scheduleDayLabel } from "@/lib/schedule";
 import { requireUser } from "@/lib/session";
-import { canonicalTaskStatusLabel, toCanonicalTaskStatus } from "@/lib/task-status";
+import {
+  canonicalTaskStatusLabel,
+  toCanonicalTaskStatus,
+} from "@/lib/task-status";
 
 export default async function TaskDetailPage({
   params,
@@ -32,17 +35,59 @@ export default async function TaskDetailPage({
   }
 
   const canonicalStatus = toCanonicalTaskStatus(task.status);
+  const relatedTasks = await prisma.task.findMany({
+    where: {
+      userId: user.id,
+      scheduledDate: task.scheduledDate,
+      NOT: {
+        id: task.id,
+      },
+    },
+    include: {
+      outlet: true,
+    },
+  });
+  const nextTask = [...relatedTasks]
+    .sort((left, right) => {
+      const leftKey = [
+        toCanonicalTaskStatus(left.status) === "DONE" ? "1" : "0",
+        toCanonicalTaskStatus(left.status) === "MISSED" ? "2" : "0",
+        left.outlet.name,
+      ].join("|");
+      const rightKey = [
+        toCanonicalTaskStatus(right.status) === "DONE" ? "1" : "0",
+        toCanonicalTaskStatus(right.status) === "MISSED" ? "2" : "0",
+        right.outlet.name,
+      ].join("|");
+
+      return leftKey.localeCompare(rightKey);
+    })
+    .find((candidate) => {
+      const candidateStatus = toCanonicalTaskStatus(candidate.status);
+
+      return candidateStatus === "PENDING" || candidateStatus === "IN_PROGRESS";
+    });
 
   return (
     <main className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
       <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
         <div className="mb-5 space-y-2">
-          <Link
-            className="inline-flex rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 transition hover:border-cyan-300 hover:text-cyan-700"
-            href="/tasks/today"
-          >
-            Back to Tasks
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              className="inline-flex rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 transition hover:border-cyan-300 hover:text-cyan-700"
+              href="/tasks/today"
+            >
+              Back to Tasks
+            </Link>
+            {nextTask ? (
+              <Link
+                className="inline-flex rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-800 transition hover:border-cyan-300"
+                href={`/tasks/${nextTask.id}`}
+              >
+                Next Task
+              </Link>
+            ) : null}
+          </div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
             Outlet Detail
           </p>

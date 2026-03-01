@@ -17,36 +17,36 @@ export default async function AppLayout({
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-700">
                     Field Force Visit Tasks
                   </p>
-                  <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-700">
+                  <span className="inline-flex w-fit rounded-full bg-cyan-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-700">
                     {user.role === UserRole.SUPERVISOR
                       ? "Supervisor / Admin"
                       : "Field Force"}
                   </span>
                 </div>
-                <h1 className="mt-2 truncate text-xl font-semibold text-slate-900 sm:text-2xl">
+                <h1 className="mt-2 break-words text-xl font-semibold text-slate-900 sm:text-2xl">
                   {user.name}
                 </h1>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
                   {user.role === UserRole.SUPERVISOR
                     ? "Monitor live activity, import outlets, and manage assignments."
                     : "Track duty status, open tasks, and complete outlet visits."}
                 </p>
               </div>
 
-              <div className="flex items-center gap-3 self-start lg:self-auto">
+              <div className="grid w-full grid-cols-2 gap-3 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end lg:self-auto">
                 <Link
-                  className="hidden rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 sm:inline-flex"
+                  className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 sm:rounded-full"
                   href={user.role === UserRole.SUPERVISOR ? "/supervisor" : "/tasks/today"}
                 >
                   Home
                 </Link>
-                <form action="/api/auth/logout" method="post">
+                <form action="/api/auth/logout" className="w-full sm:w-auto" method="post">
                   <button
-                    className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+                    className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 sm:rounded-full"
                     type="submit"
                   >
                     Logout

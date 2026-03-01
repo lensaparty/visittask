@@ -32,11 +32,12 @@ export function RoleNavbar({
           { href: "/admin/assign", label: "Assign" },
           { href: "/admin/users", label: "Users" },
         ];
+  const mobileGridClass = items.length === 1 ? "grid-cols-1" : "grid-cols-2";
 
   return (
     <nav
       aria-label="Primary"
-      className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1"
+      className={`grid gap-2 ${mobileGridClass} sm:flex sm:flex-wrap`}
     >
       {items.map((item) => {
         const active =
@@ -47,7 +48,7 @@ export function RoleNavbar({
         return (
           <Link
             aria-current={active ? "page" : undefined}
-            className={`inline-flex min-w-[6.75rem] shrink-0 items-center justify-center rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap transition ${itemClasses(active)}`}
+            className={`inline-flex min-h-11 w-full items-center justify-center rounded-2xl px-4 py-2 text-sm font-medium whitespace-nowrap transition sm:min-w-[6.75rem] sm:w-auto sm:rounded-full ${itemClasses(active)}`}
             href={item.href}
             key={item.href}
           >
