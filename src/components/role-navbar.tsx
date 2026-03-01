@@ -50,7 +50,7 @@ export function RoleNavbar({
             href={item.href}
             key={item.href}
           >
-            {item.label}
+            <span style={{ color: active ? "#ffffff" : "#334155" }}>{item.label}</span>
           </Link>
         );
       })}
