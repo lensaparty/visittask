@@ -137,6 +137,25 @@ function buildOutletSearchText(outlet: OutletView) {
     .toLowerCase();
 }
 
+function teamAccentClasses(teamName: string | null | undefined) {
+  switch (teamName) {
+    case "Phoenix":
+      return "border-amber-200 bg-amber-50 text-amber-800";
+    case "Vamos":
+      return "border-sky-200 bg-sky-50 text-sky-800";
+    case "Southern":
+      return "border-rose-200 bg-rose-50 text-rose-800";
+    case "North":
+      return "border-indigo-200 bg-indigo-50 text-indigo-800";
+    case "Inferno":
+      return "border-orange-200 bg-orange-50 text-orange-800";
+    case "Pakidulan Troops":
+      return "border-emerald-200 bg-emerald-50 text-emerald-800";
+    default:
+      return "border-slate-200 bg-slate-50 text-slate-700";
+  }
+}
+
 function OutletDetailCard({
   actionLabel,
   actionVariant,
@@ -176,6 +195,7 @@ function OutletDetailCard({
   const districtBadgeLabel = matchedDistrictCode.startsWith("DSUK")
     ? matchedDistrictCode
     : null;
+  const teamBadgeClassName = teamAccentClasses(outlet.teamName ?? null);
 
   return (
     <article className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm shadow-slate-900/5">
@@ -187,12 +207,21 @@ function OutletDetailCard({
           <h3 className="mt-1 text-base font-semibold text-slate-900">
             {outlet.namaToko}
           </h3>
-          {districtBadgeLabel ? (
-            <p className="mt-2">
-              <span className="inline-flex rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">
-                Matched by District: {districtBadgeLabel}
-              </span>
-            </p>
+          {districtBadgeLabel || outlet.teamName ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {districtBadgeLabel ? (
+                <span className="inline-flex rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">
+                  Matched by District: {districtBadgeLabel}
+                </span>
+              ) : null}
+              {outlet.teamName ? (
+                <span
+                  className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${teamBadgeClassName}`}
+                >
+                  Team: {outlet.teamName}
+                </span>
+              ) : null}
+            </div>
           ) : null}
           <p className="mt-2 text-sm leading-6 text-slate-600">{outlet.alamat}</p>
         </div>
@@ -280,6 +309,7 @@ export function AssignmentManager({
   const [textareaValue, setTextareaValue] = useState("");
   const [outletQuery, setOutletQuery] = useState("");
   const [selectedMasterDsuk, setSelectedMasterDsuk] = useState("");
+  const [dsukViewMode, setDsukViewMode] = useState<"matched" | "all">("matched");
   const [territoryGroupFilter, setTerritoryGroupFilter] = useState("");
   const [teamFilter, setTeamFilter] = useState("");
   const [picFilter, setPicFilter] = useState("");
@@ -316,7 +346,11 @@ export function AssignmentManager({
     const territoryPicMapping =
       getTerritoryPicMapping(outlet.district) ?? getTerritoryPicMapping(outlet.territoryGroup);
 
-    if (selectedMasterDsuk && districtDsuk !== selectedMasterDsuk) {
+    if (
+      selectedMasterDsuk &&
+      dsukViewMode === "matched" &&
+      districtDsuk !== selectedMasterDsuk
+    ) {
       return false;
     }
 
@@ -852,6 +886,7 @@ export function AssignmentManager({
                   setTextareaValue("");
                   setCatalogActionMessage(null);
                   setSelectedMasterDsuk("");
+                  setDsukViewMode("matched");
                   setTerritoryGroupFilter("");
                   setTeamFilter("");
                   setPicFilter("");
@@ -1407,6 +1442,32 @@ export function AssignmentManager({
               </button>
             ))}
           </div>
+          {selectedMasterDsuk ? (
+            <div className="flex flex-wrap gap-2">
+              <button
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] transition ${
+                  dsukViewMode === "matched"
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-cyan-700"
+                }`}
+                onClick={() => setDsukViewMode("matched")}
+                type="button"
+              >
+                Only Matched DSUK
+              </button>
+              <button
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] transition ${
+                  dsukViewMode === "all"
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-cyan-700"
+                }`}
+                onClick={() => setDsukViewMode("all")}
+                type="button"
+              >
+                Show All Outlet
+              </button>
+            </div>
+          ) : null}
           {activeMasterMapping ? (
             <div className="rounded-2xl bg-cyan-50 px-4 py-3 text-sm text-cyan-900">
               Distrik DSUK aktif: <span className="font-semibold">{activeMasterMapping.territoryGroup}</span> •{" "}
