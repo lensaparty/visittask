@@ -1,7 +1,7 @@
 import { TaskStatus, UserRole } from "@prisma/client";
 import { SupervisorTools } from "@/components/supervisor-tools";
 import { prisma } from "@/lib/prisma";
-import { startOfUtcDay } from "@/lib/schedule";
+import { shouldGenerateTaskForDate, startOfUtcDay } from "@/lib/schedule";
 import { requireUser } from "@/lib/session";
 
 const summaryLabels: Record<TaskStatus, string> = {
@@ -17,7 +17,7 @@ export default async function SupervisorPage() {
   await requireUser(UserRole.SUPERVISOR);
   const today = startOfUtcDay(new Date());
 
-  const [fieldForceUsers, taskSummary, recentTasks] = await Promise.all([
+  const [fieldForceUsers, taskSummary, recentTasks, activeAssignments] = await Promise.all([
     prisma.user.findMany({
       where: {
         role: UserRole.FIELD_FORCE,
@@ -48,11 +48,45 @@ export default async function SupervisorPage() {
       },
       take: 10,
     }),
+    prisma.assignment.findMany({
+      where: {
+        active: true,
+      },
+      include: {
+        outlet: {
+          select: {
+            oddScheduleDay: true,
+            evenScheduleDay: true,
+          },
+        },
+      },
+    }),
   ]);
+  const matchingAssignmentCount = activeAssignments.filter((assignment) =>
+    shouldGenerateTaskForDate(assignment.outlet, new Date()),
+  ).length;
+  const generatedTodayCount = taskSummary.reduce(
+    (total, item) => total + item._count._all,
+    0,
+  );
 
   return (
     <main className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
       <section className="space-y-6">
+        <section className="rounded-3xl border border-cyan-100 bg-cyan-50 p-5 shadow-lg shadow-cyan-900/5 sm:p-6">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
+            Generate Reminder
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+            {matchingAssignmentCount} assignment cocok untuk hari ini
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-slate-700">
+            Task yang sudah dibuat hari ini: {generatedTodayCount}. Kalau hitungan cocok hari ini
+            lebih besar dari task yang sudah ada, klik <span className="font-semibold">Generate Hari Ini</span>
+            di panel kanan untuk menyegarkan task field force.
+          </p>
+        </section>
+
         <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
           <div className="mb-5">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">

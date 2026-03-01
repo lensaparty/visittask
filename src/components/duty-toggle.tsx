@@ -83,6 +83,20 @@ async function postJson<T>(url: string, body: Record<string, unknown>) {
   return payload;
 }
 
+function normalizeGeolocationMessage(message: string) {
+  const normalizedMessage = message.toLowerCase();
+
+  if (normalizedMessage.includes("only secure origins are allowed")) {
+    return "Browser HP memblokir GPS karena halaman dibuka lewat HTTP pada IP lokal. Geolocation hanya jalan di HTTPS atau localhost pada device yang sama.";
+  }
+
+  if (normalizedMessage.includes("user denied geolocation")) {
+    return "Izin lokasi ditolak. Aktifkan permission lokasi untuk browser ini lalu coba lagi.";
+  }
+
+  return message;
+}
+
 export function DutyToggle({
   initialActiveSessionId,
 }: {
@@ -108,7 +122,11 @@ export function DutyToggle({
       await postJson("/api/tracking/ping", latestPosition);
       setLastSentAt(new Date().toISOString());
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Tracking ping failed.");
+      setMessage(
+        error instanceof Error
+          ? normalizeGeolocationMessage(error.message)
+          : "Tracking ping failed.",
+      );
     }
   });
 
@@ -137,7 +155,7 @@ export function DutyToggle({
         });
       },
       (error) => {
-        setMessage(error.message);
+        setMessage(normalizeGeolocationMessage(error.message));
       },
       {
         enableHighAccuracy: true,
@@ -171,7 +189,9 @@ export function DutyToggle({
           router.refresh();
         } catch (error) {
           setMessage(
-            error instanceof Error ? error.message : "Unable to start duty.",
+            error instanceof Error
+              ? normalizeGeolocationMessage(error.message)
+              : "Unable to start duty.",
           );
         }
       })();
@@ -192,7 +212,11 @@ export function DutyToggle({
           stopBrowserTracking(watchIdRef, intervalRef);
           router.refresh();
         } catch (error) {
-          setMessage(error instanceof Error ? error.message : "Unable to stop duty.");
+          setMessage(
+            error instanceof Error
+              ? normalizeGeolocationMessage(error.message)
+              : "Unable to stop duty.",
+          );
         }
       })();
     });

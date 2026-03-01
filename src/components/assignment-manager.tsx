@@ -71,6 +71,11 @@ type AssignmentDeleteResult = {
   message?: string;
 };
 
+function formatLocalDate(date: Date) {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 10);
+}
+
 function parseOutletCodes(value: string) {
   const uniqueCodes = new Set<string>();
 
@@ -622,7 +627,46 @@ export function AssignmentManager({
             return;
           }
 
-          setSubmitResult(payload);
+          const today = formatLocalDate(new Date());
+          let nextMessage =
+            "Assignment saved. Generate task hari ini dijalankan otomatis.";
+
+          try {
+            const generateResponse = await fetch("/api/tasks/generate", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                from: today,
+                to: today,
+              }),
+            });
+            const generatePayload = (await generateResponse.json().catch(() => ({}))) as {
+              message?: string;
+              created?: number;
+              skipped?: number;
+            };
+
+            if (!generateResponse.ok) {
+              nextMessage = `Assignment saved, tapi generate task hari ini gagal: ${
+                generatePayload.message ?? "unknown error"
+              }`;
+            } else {
+              nextMessage = `Assignment saved. Generate hari ini: created ${
+                generatePayload.created ?? 0
+              }, skipped ${generatePayload.skipped ?? 0}.`;
+            }
+          } catch (generateError) {
+            nextMessage = `Assignment saved, tapi generate task hari ini gagal: ${
+              generateError instanceof Error ? generateError.message : "unknown error"
+            }`;
+          }
+
+          setSubmitResult({
+            ...payload,
+            message: nextMessage,
+          });
           await loadAssignmentsForUser(selectedUser.id, true);
         } catch (error) {
           setSubmitError(error instanceof Error ? error.message : "Unable to save assignments.");
@@ -767,6 +811,9 @@ export function AssignmentManager({
               <p>
                 Draft untuk {submitResult.user.name} sudah disimpan. Aktif: {submitResult.assignedCount} outlet.
               </p>
+              {submitResult.message ? (
+                <p className="text-slate-600">{submitResult.message}</p>
+              ) : null}
               <p className="text-slate-600">
                 Activated: {submitResult.activatedCount} • Deactivated: {submitResult.deactivatedCount}
               </p>
