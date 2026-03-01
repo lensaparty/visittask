@@ -130,7 +130,6 @@ function buildOutletSearchText(outlet: OutletView) {
     outlet.brand ?? "",
     outlet.size ?? "",
     territoryPicMapping?.teamName ?? "",
-    territoryPicMapping?.picName ?? "",
     formatCoordinate(outlet.latitude),
     formatCoordinate(outlet.longitude),
   ]
@@ -217,16 +216,20 @@ function OutletDetailCard({
         </div>
         <div className="rounded-2xl bg-cyan-50 px-3 py-3">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">
-            PIC by DSUK
+            DSUK Mapping
           </p>
-          <p className="mt-1 text-slate-700">{outlet.teamName ?? "Belum ada mapping"}</p>
-          <p className="mt-1 text-slate-600">{outlet.picName ?? "Cocokkan dari territory group"}</p>
+          <p className="mt-1 text-slate-700">
+            Group Baru: {outlet.territoryGroup ?? "Belum ada mapping"}
+          </p>
+          <p className="mt-1 text-slate-600">
+            Team: {outlet.teamName ?? "Cocokkan dari distrik DSUK"}
+          </p>
         </div>
         <div className="rounded-2xl bg-slate-50 px-3 py-3">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-            Supervisor
+            PIC / Supervisor
           </p>
-          <p className="mt-1 text-slate-700">{outlet.supervisorName ?? "-"}</p>
+          <p className="mt-1 text-slate-700">{outlet.supervisorName ?? "Supervisor belum terhubung"}</p>
           <p className="mt-1 text-slate-600">Telp: {outlet.noTelpSpv ?? "-"}</p>
         </div>
         <div className="rounded-2xl bg-slate-50 px-3 py-3">
@@ -318,7 +321,7 @@ export function AssignmentManager({
       return false;
     }
 
-    if (picFilter && territoryPicMapping?.picName !== picFilter) {
+    if (picFilter && (outlet.supervisorName ?? "") !== picFilter) {
       return false;
     }
 
@@ -352,7 +355,13 @@ export function AssignmentManager({
   const draftActiveCount = selectedCodes.length;
   const territoryGroupOptions = TERRITORY_PIC_MAPPINGS.map((mapping) => mapping.territoryGroup);
   const teamOptions = [...new Set(TERRITORY_PIC_MAPPINGS.map((mapping) => mapping.teamName))];
-  const picOptions = [...new Set(TERRITORY_PIC_MAPPINGS.map((mapping) => mapping.picName))];
+  const picOptions = [
+    ...new Set(
+      masterOutlets
+        .map((outlet) => outlet.supervisorName?.trim() ?? "")
+        .filter((name) => name.length > 0),
+    ),
+  ].sort((left, right) => left.localeCompare(right));
   const activeMasterMapping = selectedMasterDsuk
     ? getTerritoryPicMapping(selectedMasterDsuk)
     : null;
@@ -562,9 +571,7 @@ export function AssignmentManager({
     territoryGroup: string | null | undefined,
   ) {
     return (
-      activeMasterMapping ??
-      getTerritoryPicMapping(district) ??
-      getTerritoryPicMapping(territoryGroup)
+      getTerritoryPicMapping(district) ?? getTerritoryPicMapping(territoryGroup)
     );
   }
 
@@ -693,8 +700,8 @@ export function AssignmentManager({
         selectedUser.email,
         assignment.active ? "ACTIVE" : "INACTIVE",
         getDraftStateLabel(assignment),
-        getTerritoryPicMapping(assignment.territoryGroup)?.teamName ?? "",
-        getTerritoryPicMapping(assignment.territoryGroup)?.picName ?? "",
+        resolveDisplayMapping(assignment.district, assignment.territoryGroup)?.teamName ?? "",
+        assignment.supervisorName ?? "",
         assignment.kodeToko,
         assignment.namaToko,
         assignment.alamat,
@@ -743,8 +750,8 @@ export function AssignmentManager({
       Email: selectedUser.email,
       "Assignment Status": assignment.active ? "ACTIVE" : "INACTIVE",
       "Draft State": getDraftStateLabel(assignment),
-      Team: getTerritoryPicMapping(assignment.territoryGroup)?.teamName ?? "",
-      PIC: getTerritoryPicMapping(assignment.territoryGroup)?.picName ?? "",
+      Team: resolveDisplayMapping(assignment.district, assignment.territoryGroup)?.teamName ?? "",
+      PIC: assignment.supervisorName ?? "",
       "Kode Toko": assignment.kodeToko,
       "Nama Toko": assignment.namaToko,
       Alamat: assignment.alamat,
@@ -1352,8 +1359,10 @@ export function AssignmentManager({
 
         <p className="mt-3 text-sm leading-6 text-slate-600">
           Chip DSUK di bawah membaca kolom <span className="font-semibold text-slate-900">Distrik</span>.
-          Kalau distrik outlet berisi `DSUK001` sampai `DSUK017`, sistem akan cocokkan team dan PIC dari
-          kode DSUK itu. Tombol apply akan menulis DSUK tersebut ke <span className="font-semibold text-slate-900">group baru</span>
+          Kalau distrik outlet berisi `DSUK001` sampai `DSUK017`, sistem akan cocokkan
+          <span className="font-semibold text-slate-900"> team </span>dari kode DSUK itu.
+          PIC mengikuti nama <span className="font-semibold text-slate-900">Supervisor</span> outlet.
+          Tombol apply akan menulis DSUK tersebut ke <span className="font-semibold text-slate-900">group baru</span>
           di master outlet.
         </p>
 
@@ -1394,7 +1403,7 @@ export function AssignmentManager({
           {activeMasterMapping ? (
             <div className="rounded-2xl bg-cyan-50 px-4 py-3 text-sm text-cyan-900">
               Distrik DSUK aktif: <span className="font-semibold">{activeMasterMapping.territoryGroup}</span> •{" "}
-              {activeMasterMapping.teamName} • {activeMasterMapping.picName}
+              Team: {activeMasterMapping.teamName} • PIC mengikuti supervisor outlet
             </div>
           ) : null}
         </div>
@@ -1439,7 +1448,7 @@ export function AssignmentManager({
           </label>
 
           <label className="block space-y-2 text-sm font-medium text-slate-700">
-            <span>Filter PIC (by DSUK)</span>
+            <span>Filter PIC / Supervisor</span>
             <select
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
               onChange={(event) => {
