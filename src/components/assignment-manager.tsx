@@ -74,6 +74,12 @@ type AssignmentDeleteResult = {
   message?: string;
 };
 
+type ApplyDsukResult = {
+  territoryGroup: string;
+  updatedCount: number;
+  message?: string;
+};
+
 function parseOutletCodes(value: string) {
   const uniqueCodes = new Set<string>();
 
@@ -254,6 +260,7 @@ export function AssignmentManager({
   outlets: OutletView[];
   users: AssignableUser[];
 }) {
+  const [masterOutlets, setMasterOutlets] = useState(outlets);
   const [selectedUserId, setSelectedUserId] = useState(users[0]?.id ?? "");
   const [textareaValue, setTextareaValue] = useState("");
   const [outletQuery, setOutletQuery] = useState("");
@@ -264,10 +271,12 @@ export function AssignmentManager({
   const [removedCodes, setRemovedCodes] = useState<string[]>([]);
   const [assignments, setAssignments] = useState<AssignmentView[]>([]);
   const [submitResult, setSubmitResult] = useState<BulkAssignmentResult | null>(null);
+  const [catalogActionMessage, setCatalogActionMessage] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isDeletePending, startDeleteTransition] = useTransition();
+  const [isApplyPending, startApplyTransition] = useTransition();
   const [showInactiveHistory, setShowInactiveHistory] = useState(false);
   const deferredOutletQuery = useDeferredValue(outletQuery);
 
@@ -275,7 +284,7 @@ export function AssignmentManager({
   const selectedCodes = parseOutletCodes(textareaValue);
   const selectedCodeSet = new Set(selectedCodes);
   const removedCodeSet = new Set(removedCodes);
-  const outletByCode = new Map(outlets.map((outlet) => [outlet.storeCode, outlet]));
+  const outletByCode = new Map(masterOutlets.map((outlet) => [outlet.storeCode, outlet]));
 
   const selectedOutlets = selectedCodes
     .map((code) => outletByCode.get(code))
@@ -286,7 +295,7 @@ export function AssignmentManager({
     .filter((outlet): outlet is OutletView => Boolean(outlet));
 
   const normalizedQuery = deferredOutletQuery.trim().toLowerCase();
-  const searchedOutlets = outlets.filter((outlet) => {
+  const searchedOutlets = masterOutlets.filter((outlet) => {
     const territoryPicMapping = getTerritoryPicMapping(outlet.territoryGroup);
 
     if (
@@ -566,6 +575,72 @@ export function AssignmentManager({
     setSubmitError(null);
   }
 
+  function handleApplyDsukToMaster() {
+    if (!activeMasterMapping) {
+      setCatalogActionMessage("Pilih chip DSUK dulu sebelum update master outlet.");
+      return;
+    }
+
+    if (searchedOutlets.length === 0) {
+      setCatalogActionMessage("Tidak ada outlet pada hasil filter untuk di-update.");
+      return;
+    }
+
+    const targetCodes = searchedOutlets.map((outlet) => outlet.storeCode);
+    const targetCodeSet = new Set(targetCodes);
+
+    startApplyTransition(() => {
+      void (async () => {
+        try {
+          const response = await fetch("/api/admin/outlets/apply-dsuk", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              territoryGroup: activeMasterMapping.territoryGroup,
+              outletCodes: targetCodes,
+            }),
+          });
+          const payload = (await response.json().catch(() => ({}))) as ApplyDsukResult;
+
+          if (!response.ok) {
+            setCatalogActionMessage(payload.message ?? "Gagal update master outlet.");
+            return;
+          }
+
+          setMasterOutlets((currentOutlets) =>
+            currentOutlets.map((outlet) =>
+              targetCodeSet.has(outlet.storeCode)
+                ? {
+                    ...outlet,
+                    territoryGroup: payload.territoryGroup,
+                  }
+                : outlet,
+            ),
+          );
+          setAssignments((currentAssignments) =>
+            currentAssignments.map((assignment) =>
+              targetCodeSet.has(assignment.kodeToko)
+                ? {
+                    ...assignment,
+                    territoryGroup: payload.territoryGroup,
+                  }
+                : assignment,
+            ),
+          );
+          setCatalogActionMessage(
+            `Master outlet updated: ${payload.updatedCount} outlet disimpan ke ${payload.territoryGroup}.`,
+          );
+        } catch (error) {
+          setCatalogActionMessage(
+            error instanceof Error ? error.message : "Gagal update master outlet.",
+          );
+        }
+      })();
+    });
+  }
+
   function handleExportAssignments() {
     if (!selectedUser || assignments.length === 0) {
       return;
@@ -742,6 +817,7 @@ export function AssignmentManager({
                   setAssignments([]);
                   setLoadError(null);
                   setTextareaValue("");
+                  setCatalogActionMessage(null);
                   setTerritoryGroupFilter("");
                   setTeamFilter("");
                   setPicFilter("");
@@ -792,7 +868,10 @@ export function AssignmentManager({
               <span>Cari Outlet</span>
               <input
                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-                onChange={(event) => setOutletQuery(event.target.value)}
+                onChange={(event) => {
+                  setOutletQuery(event.target.value);
+                  setCatalogActionMessage(null);
+                }}
                 placeholder="Cari kode toko, nama, alamat, kecamatan, territory, supervisor, koordinat"
                 value={outletQuery}
               />
@@ -1261,7 +1340,10 @@ export function AssignmentManager({
                   ? "border-slate-900 bg-slate-900 text-white"
                   : "border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-cyan-700"
               }`}
-              onClick={() => setTerritoryGroupFilter("")}
+              onClick={() => {
+                setTerritoryGroupFilter("");
+                setCatalogActionMessage(null);
+              }}
               type="button"
             >
               Semua DSUK
@@ -1274,7 +1356,10 @@ export function AssignmentManager({
                     : "border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-cyan-700"
                 }`}
                 key={option}
-                onClick={() => setTerritoryGroupFilter(option)}
+                onClick={() => {
+                  setTerritoryGroupFilter(option);
+                  setCatalogActionMessage(null);
+                }}
                 type="button"
               >
                 {option}
@@ -1294,7 +1379,10 @@ export function AssignmentManager({
             <span>Filter Territory Group (DSUK)</span>
             <select
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-              onChange={(event) => setTerritoryGroupFilter(event.target.value)}
+              onChange={(event) => {
+                setTerritoryGroupFilter(event.target.value);
+                setCatalogActionMessage(null);
+              }}
               value={territoryGroupFilter}
             >
               <option value="">Semua Territory Group</option>
@@ -1310,7 +1398,10 @@ export function AssignmentManager({
             <span>Filter Team (by DSUK)</span>
             <select
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-              onChange={(event) => setTeamFilter(event.target.value)}
+              onChange={(event) => {
+                setTeamFilter(event.target.value);
+                setCatalogActionMessage(null);
+              }}
               value={teamFilter}
             >
               <option value="">Semua Team</option>
@@ -1326,7 +1417,10 @@ export function AssignmentManager({
             <span>Filter PIC (by DSUK)</span>
             <select
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-              onChange={(event) => setPicFilter(event.target.value)}
+              onChange={(event) => {
+                setPicFilter(event.target.value);
+                setCatalogActionMessage(null);
+              }}
               value={picFilter}
             >
               <option value="">Semua PIC</option>
@@ -1344,15 +1438,31 @@ export function AssignmentManager({
             <p>
               Hasil filter saat ini: <span className="font-semibold text-slate-900">{searchedOutlets.length}</span> outlet
             </p>
-            <button
-              className="rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800 transition hover:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={searchedOutlets.length === 0}
-              onClick={handleAddAllFiltered}
-              type="button"
-            >
-              Add All Filtered
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800 transition hover:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={searchedOutlets.length === 0}
+                onClick={handleAddAllFiltered}
+                type="button"
+              >
+                Add All Filtered
+              </button>
+              <button
+                className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:border-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isApplyPending || !activeMasterMapping || searchedOutlets.length === 0}
+                onClick={handleApplyDsukToMaster}
+                type="button"
+              >
+                {isApplyPending ? "Applying..." : "Apply DSUK To Master Outlet"}
+              </button>
+            </div>
           </div>
+
+          {catalogActionMessage ? (
+            <p className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+              {catalogActionMessage}
+            </p>
+          ) : null}
 
           {visibleOutlets.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
