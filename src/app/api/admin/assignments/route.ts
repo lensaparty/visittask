@@ -2,6 +2,7 @@ import { UserRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
+import { getSupervisorFallbackByDistrict } from "@/lib/supervisor-fallback";
 
 async function requireSupervisor() {
   const adminUser = await getCurrentUser();
@@ -118,7 +119,9 @@ export async function GET(request: Request) {
       district: assignment.outlet.district,
       territory: assignment.outlet.territory,
       territoryGroup: assignment.outlet.territoryGroup,
-      supervisorName: assignment.outlet.supervisor?.name ?? null,
+      supervisorName:
+        assignment.outlet.supervisor?.name ??
+        getSupervisorFallbackByDistrict(assignment.outlet.district),
       noTelpSpv: assignment.outlet.supervisorPhone,
       typeOutlet: assignment.outlet.typeOutlet,
       visualPposm: assignment.outlet.visualPposm,

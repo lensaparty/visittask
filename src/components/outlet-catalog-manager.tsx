@@ -1,6 +1,30 @@
 "use client";
 
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useEffect, useState, useTransition } from "react";
+
+type CatalogAssignableUser = {
+  id: string;
+  name: string;
+  email: string;
+};
+
+type AssignmentSummary = {
+  kodeToko: string;
+  active: boolean;
+};
+
+type AssignmentListResponse = {
+  assignments?: AssignmentSummary[];
+  message?: string;
+};
+
+type BulkAssignmentResult = {
+  assignedCount: number;
+  activatedCount: number;
+  deactivatedCount: number;
+  missingOutletCodes: string[];
+  message?: string;
+};
 
 type OutletCatalogView = {
   id: string;
@@ -50,8 +74,14 @@ function buildOutletSearchText(outlet: OutletCatalogView) {
 }
 
 function OutletCatalogCard({
+  actionDisabled,
+  actionLabel,
+  onAction,
   outlet,
 }: {
+  actionDisabled?: boolean;
+  actionLabel?: string;
+  onAction?: () => void;
   outlet: OutletCatalogView;
 }) {
   return (
@@ -64,6 +94,16 @@ function OutletCatalogCard({
           <h3 className="mt-1 text-base font-semibold text-slate-900">{outlet.name}</h3>
           <p className="mt-2 text-sm leading-6 text-slate-600">{outlet.address}</p>
         </div>
+        {onAction && actionLabel ? (
+          <button
+            className="rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800 transition hover:border-cyan-300 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
+            disabled={actionDisabled}
+            onClick={onAction}
+            type="button"
+          >
+            {actionLabel}
+          </button>
+        ) : null}
       </div>
 
       <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
@@ -115,8 +155,10 @@ function OutletCatalogCard({
 
 export function OutletCatalogManager({
   outlets,
+  users,
 }: {
   outlets: OutletCatalogView[];
+  users: CatalogAssignableUser[];
 }) {
   const [query, setQuery] = useState("");
   const [regencyFilter, setRegencyFilter] = useState("");
@@ -124,8 +166,16 @@ export function OutletCatalogManager({
   const [territoryFilter, setTerritoryFilter] = useState("");
   const [groupFilter, setGroupFilter] = useState("");
   const [sortBy, setSortBy] = useState<"address" | "code" | "territory" | "group">("address");
+  const [selectedUserId, setSelectedUserId] = useState(users[0]?.id ?? "");
+  const [activeAssignedCodes, setActiveAssignedCodes] = useState<string[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [assignFeedback, setAssignFeedback] = useState<string | null>(null);
+  const [assignError, setAssignError] = useState<string | null>(null);
+  const [isAssignPending, startAssignTransition] = useTransition();
   const deferredQuery = useDeferredValue(query);
   const normalizedQuery = deferredQuery.trim().toLowerCase();
+  const selectedUser = users.find((user) => user.id === selectedUserId) ?? null;
+  const activeAssignedCodeSet = new Set(activeAssignedCodes);
 
   const regencyOptions = [
     ...new Set(
@@ -226,6 +276,110 @@ export function OutletCatalogManager({
 
   const visibleOutlets = normalizedQuery ? sortedOutlets.slice(0, 120) : sortedOutlets.slice(0, 60);
 
+  useEffect(() => {
+    if (!selectedUserId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        setLoadError(null);
+
+        const response = await fetch(
+          `/api/admin/assignments?userId=${encodeURIComponent(selectedUserId)}`,
+        );
+        const payload = (await response.json().catch(() => ({}))) as AssignmentListResponse;
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!response.ok) {
+          setActiveAssignedCodes([]);
+          setLoadError(payload.message ?? "Unable to load assignments.");
+          return;
+        }
+
+        const nextActiveCodes = (payload.assignments ?? [])
+          .filter((assignment) => assignment.active)
+          .map((assignment) => assignment.kodeToko);
+
+        setActiveAssignedCodes(nextActiveCodes);
+      } catch (error) {
+        if (!cancelled) {
+          setActiveAssignedCodes([]);
+          setLoadError(error instanceof Error ? error.message : "Unable to load assignments.");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedUserId]);
+
+  function submitMergedAssignments(nextCodes: string[]) {
+    if (!selectedUser) {
+      setAssignError("Pilih field force dulu sebelum add outlet.");
+      return;
+    }
+
+    startAssignTransition(() => {
+      void (async () => {
+        try {
+          setAssignError(null);
+          setAssignFeedback(null);
+
+          const response = await fetch("/api/admin/assignments/bulk", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userEmail: selectedUser.email,
+              outletCodes: nextCodes,
+            }),
+          });
+          const payload = (await response.json().catch(() => ({}))) as BulkAssignmentResult;
+
+          if (!response.ok) {
+            setAssignError(payload.message ?? "Unable to save assignments.");
+            return;
+          }
+
+          setActiveAssignedCodes(nextCodes);
+          setAssignFeedback(
+            `Assignment ${selectedUser.name} diperbarui. Aktif ${payload.assignedCount} outlet.`,
+          );
+        } catch (error) {
+          setAssignError(error instanceof Error ? error.message : "Unable to save assignments.");
+        }
+      })();
+    });
+  }
+
+  function handleAssignOutlet(storeCode: string) {
+    if (activeAssignedCodeSet.has(storeCode)) {
+      return;
+    }
+
+    submitMergedAssignments([...activeAssignedCodes, storeCode]);
+  }
+
+  function handleAssignAllFiltered() {
+    const mergedCodes = [...activeAssignedCodes];
+
+    for (const outlet of sortedOutlets) {
+      if (!mergedCodes.includes(outlet.storeCode)) {
+        mergedCodes.push(outlet.storeCode);
+      }
+    }
+
+    submitMergedAssignments(mergedCodes);
+  }
+
   return (
     <div className="space-y-6">
       <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
@@ -247,8 +401,81 @@ export function OutletCatalogManager({
 
         <p className="mt-3 text-sm leading-6 text-slate-600">
           Semua outlet hasil import tampil di sini agar lebih lega dibaca. Gunakan filter lokasi,
-          territory, dan group untuk menentukan outlet mana yang ingin kamu copy ke menu assignment.
+          territory, dan group untuk menentukan outlet mana yang ingin langsung kamu assign ke
+          field force terpilih.
         </p>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <label className="block space-y-2 text-sm font-medium text-slate-700">
+            <span>Field Force Tujuan</span>
+            <select
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => {
+                setSelectedUserId(event.target.value);
+                setAssignError(null);
+                setAssignFeedback(null);
+              }}
+              value={selectedUserId}
+            >
+              {users.length === 0 ? (
+                <option value="">Belum ada user field force</option>
+              ) : null}
+              {users.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.name} ({user.email})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            className="rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm font-semibold text-cyan-800 transition hover:border-cyan-300 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
+            disabled={isAssignPending || !selectedUser || sortedOutlets.length === 0}
+            onClick={handleAssignAllFiltered}
+            type="button"
+          >
+            {isAssignPending ? "Saving..." : "Add All Filtered"}
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Field Force Aktif
+            </p>
+            <p className="mt-1 font-medium text-slate-900">{selectedUser?.name ?? "-"}</p>
+          </div>
+          <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Assignment Aktif
+            </p>
+            <p className="mt-1 font-medium text-slate-900">{activeAssignedCodes.length}</p>
+          </div>
+          <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Hasil Filter
+            </p>
+            <p className="mt-1 font-medium text-slate-900">{sortedOutlets.length}</p>
+          </div>
+        </div>
+
+        {loadError ? (
+          <p className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {loadError}
+          </p>
+        ) : null}
+
+        {assignError ? (
+          <p className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {assignError}
+          </p>
+        ) : null}
+
+        {assignFeedback ? (
+          <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {assignFeedback}
+          </p>
+        ) : null}
 
         <label className="mt-5 block space-y-2 text-sm font-medium text-slate-700">
           <span>Cari Outlet</span>
@@ -351,7 +578,7 @@ export function OutletCatalogManager({
             <span className="font-semibold text-slate-900">{sortedOutlets.length}</span> outlet
           </p>
           <p className="text-xs text-slate-500">
-            Buka menu Assign setelah menentukan kode toko yang mau dipakai.
+            Tombol Add akan merge outlet ke assignment aktif user yang dipilih.
           </p>
         </div>
       </section>
@@ -364,7 +591,13 @@ export function OutletCatalogManager({
         ) : (
           <div className="space-y-4">
             {visibleOutlets.map((outlet) => (
-              <OutletCatalogCard key={outlet.id} outlet={outlet} />
+              <OutletCatalogCard
+                actionDisabled={isAssignPending || !selectedUser || activeAssignedCodeSet.has(outlet.storeCode)}
+                actionLabel={activeAssignedCodeSet.has(outlet.storeCode) ? "Assigned" : "Add"}
+                key={outlet.id}
+                onAction={() => handleAssignOutlet(outlet.storeCode)}
+                outlet={outlet}
+              />
             ))}
           </div>
         )}

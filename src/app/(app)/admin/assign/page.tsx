@@ -2,6 +2,7 @@ import { UserRole } from "@prisma/client";
 import { AssignmentManager } from "@/components/assignment-manager";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
+import { getSupervisorFallbackByDistrict } from "@/lib/supervisor-fallback";
 
 export default async function AdminAssignPage() {
   await requireUser(UserRole.SUPERVISOR);
@@ -78,7 +79,8 @@ export default async function AdminAssignPage() {
     district: outlet.district,
     territory: outlet.territory,
     territoryGroup: outlet.territoryGroup,
-    supervisorName: outlet.supervisor?.name ?? null,
+    supervisorName:
+      outlet.supervisor?.name ?? getSupervisorFallbackByDistrict(outlet.district),
     supervisorPhone: outlet.supervisorPhone,
     typeOutlet: outlet.typeOutlet,
     visualPposm: outlet.visualPposm,

@@ -2,35 +2,51 @@ import { UserRole } from "@prisma/client";
 import { OutletCatalogManager } from "@/components/outlet-catalog-manager";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
+import { getSupervisorFallbackByDistrict } from "@/lib/supervisor-fallback";
 
 export default async function AdminOutletsPage() {
   await requireUser(UserRole.SUPERVISOR);
 
-  const outletRows = await prisma.outlet.findMany({
-    select: {
-      id: true,
-      storeCode: true,
-      name: true,
-      address: true,
-      subdistrict: true,
-      regency: true,
-      district: true,
-      territory: true,
-      territoryGroup: true,
-      supervisorPhone: true,
-      typeOutlet: true,
-      visualPposm: true,
-      brand: true,
-      size: true,
-      latitude: true,
-      longitude: true,
-      supervisor: {
-        select: {
-          name: true,
+  const [users, outletRows] = await Promise.all([
+    prisma.user.findMany({
+      where: {
+        role: UserRole.FIELD_FORCE,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      },
+      orderBy: {
+        name: "asc",
+      },
+    }),
+    prisma.outlet.findMany({
+      select: {
+        id: true,
+        storeCode: true,
+        name: true,
+        address: true,
+        subdistrict: true,
+        regency: true,
+        district: true,
+        territory: true,
+        territoryGroup: true,
+        supervisorPhone: true,
+        typeOutlet: true,
+        visualPposm: true,
+        brand: true,
+        size: true,
+        latitude: true,
+        longitude: true,
+        supervisor: {
+          select: {
+            name: true,
+          },
         },
       },
-    },
-  });
+    }),
+  ]);
 
   const outlets = [...outletRows]
     .sort((left, right) => {
@@ -65,7 +81,8 @@ export default async function AdminOutletsPage() {
       district: outlet.district,
       territory: outlet.territory,
       territoryGroup: outlet.territoryGroup,
-      supervisorName: outlet.supervisor?.name ?? null,
+      supervisorName:
+        outlet.supervisor?.name ?? getSupervisorFallbackByDistrict(outlet.district),
       supervisorPhone: outlet.supervisorPhone,
       typeOutlet: outlet.typeOutlet,
       visualPposm: outlet.visualPposm,
@@ -90,7 +107,7 @@ export default async function AdminOutletsPage() {
           assign.
         </p>
       </section>
-      <OutletCatalogManager outlets={outlets} />
+      <OutletCatalogManager outlets={outlets} users={users} />
     </main>
   );
 }
