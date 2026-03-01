@@ -3,7 +3,11 @@ import Link from "next/link";
 import { DutyToggle } from "@/components/duty-toggle";
 import { distanceInMeters } from "@/lib/geo";
 import { prisma } from "@/lib/prisma";
-import { scheduleDayLabel, startOfUtcDay } from "@/lib/schedule";
+import {
+  scheduleDayLabel,
+  shouldGenerateTaskForDate,
+  startOfUtcDay,
+} from "@/lib/schedule";
 import { requireUser } from "@/lib/session";
 import {
   type CanonicalTaskStatus,
@@ -50,6 +54,7 @@ export async function TasksTodayPageContent({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await requireUser(UserRole.FIELD_FORCE);
+  const now = new Date();
   const today = startOfUtcDay(new Date());
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const requestedFilter = Array.isArray(resolvedSearchParams.status)
@@ -63,7 +68,7 @@ export async function TasksTodayPageContent({
   const activeSort: TaskSort =
     requestedSort && isTaskSort(requestedSort) ? requestedSort : "name";
 
-  const [taskRows, activeSession] = await Promise.all([
+  const [taskRows, activeSession, activeAssignments] = await Promise.all([
     prisma.task.findMany({
       where: {
         userId: user.id,
@@ -82,9 +87,30 @@ export async function TasksTodayPageContent({
         startedAt: "desc",
       },
     }),
+    prisma.assignment.findMany({
+      where: {
+        userId: user.id,
+        active: true,
+      },
+      include: {
+        outlet: {
+          select: {
+            oddScheduleDay: true,
+            evenScheduleDay: true,
+          },
+        },
+      },
+    }),
   ]);
 
   const allTasks = [...taskRows];
+  const activeAssignmentCount = activeAssignments.length;
+  const scheduledTodayCount = activeAssignments.filter((assignment) =>
+    shouldGenerateTaskForDate(assignment.outlet, now),
+  ).length;
+  const todayLabel = new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "full",
+  }).format(now);
   const hasLastKnownLocation = user.lastKnownLat != null && user.lastKnownLon != null;
   const tasksWithMeta = allTasks.map((task) => ({
     task,
@@ -221,9 +247,13 @@ export async function TasksTodayPageContent({
                     href={buildTasksTodayHref(filterOption, activeSort)}
                     key={filterOption}
                   >
-                    {filterOption === "ALL"
-                      ? `All (${taskSummary.ALL})`
-                      : `${canonicalTaskStatusLabel(filterOption)} (${taskSummary[filterOption]})`}
+                    <span
+                      style={{ color: activeFilter === filterOption ? "#ffffff" : "#475569" }}
+                    >
+                      {filterOption === "ALL"
+                        ? `All (${taskSummary.ALL})`
+                        : `${canonicalTaskStatusLabel(filterOption)} (${taskSummary[filterOption]})`}
+                    </span>
                   </Link>
                 ),
               )}
@@ -250,7 +280,11 @@ export async function TasksTodayPageContent({
                   href={buildTasksTodayHref(activeFilter, sortOption)}
                   key={sortOption}
                 >
-                  {label}
+                  <span
+                    style={{ color: activeSort === sortOption ? "#155e75" : "#475569" }}
+                  >
+                    {label}
+                  </span>
                 </Link>
               ))}
             </div>
@@ -259,10 +293,30 @@ export async function TasksTodayPageContent({
 
         <div className="space-y-4">
           {tasks.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
-              {taskSummary.ALL === 0
-                ? "No tasks generated for today yet."
-                : "No tasks match the current filter."}
+            <div className="space-y-3">
+              <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
+                {taskSummary.ALL === 0
+                  ? "No tasks generated for today yet."
+                  : "No tasks match the current filter."}
+              </div>
+              {taskSummary.ALL === 0 ? (
+                <div className="rounded-2xl bg-slate-100 px-4 py-4 text-sm text-slate-600">
+                  {activeAssignmentCount === 0 ? (
+                    <p>Belum ada outlet aktif yang di-assign ke user ini.</p>
+                  ) : scheduledTodayCount > 0 ? (
+                    <p>
+                      Ada {activeAssignmentCount} outlet aktif, dan {scheduledTodayCount} outlet
+                      cocok untuk {todayLabel}. Task belum muncul karena supervisor masih perlu
+                      menjalankan generate task.
+                    </p>
+                  ) : (
+                    <p>
+                      Ada {activeAssignmentCount} outlet aktif, tapi tidak ada yang cocok dengan
+                      jadwal hari ini ({todayLabel}) berdasarkan aturan ganjil/genap.
+                    </p>
+                  )}
+                </div>
+              ) : null}
             </div>
           ) : (
             tasks.map((task) => {
