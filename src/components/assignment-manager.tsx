@@ -240,6 +240,10 @@ export function AssignmentManager({
   const [selectedUserId, setSelectedUserId] = useState(users[0]?.id ?? "");
   const [textareaValue, setTextareaValue] = useState("");
   const [outletQuery, setOutletQuery] = useState("");
+  const [regencyFilter, setRegencyFilter] = useState("");
+  const [subdistrictFilter, setSubdistrictFilter] = useState("");
+  const [territoryFilter, setTerritoryFilter] = useState("");
+  const [sortBy, setSortBy] = useState<"address" | "code" | "territory">("address");
   const [removedQuery, setRemovedQuery] = useState("");
   const [removedCodes, setRemovedCodes] = useState<string[]>([]);
   const [assignments, setAssignments] = useState<AssignmentView[]>([]);
@@ -266,10 +270,72 @@ export function AssignmentManager({
     .filter((outlet): outlet is OutletView => Boolean(outlet));
 
   const normalizedQuery = deferredOutletQuery.trim().toLowerCase();
-  const searchedOutlets = normalizedQuery
-    ? outlets.filter((outlet) => buildOutletSearchText(outlet).includes(normalizedQuery))
-    : outlets;
-  const visibleOutlets = normalizedQuery ? searchedOutlets.slice(0, 80) : searchedOutlets.slice(0, 36);
+  const filteredOutlets = outlets.filter((outlet) => {
+    if (regencyFilter && (outlet.regency ?? "") !== regencyFilter) {
+      return false;
+    }
+
+    if (subdistrictFilter && (outlet.subdistrict ?? "") !== subdistrictFilter) {
+      return false;
+    }
+
+    if (territoryFilter && (outlet.territory ?? "") !== territoryFilter) {
+      return false;
+    }
+
+    if (!normalizedQuery) {
+      return true;
+    }
+
+    return buildOutletSearchText(outlet).includes(normalizedQuery);
+  });
+  const sortedOutlets =
+    sortBy === "code"
+      ? [...filteredOutlets].sort((left, right) =>
+          left.storeCode.localeCompare(right.storeCode),
+        )
+      : sortBy === "territory"
+        ? [...filteredOutlets].sort((left, right) => {
+            const leftKey = [
+              left.territory ?? "",
+              left.regency ?? "",
+              left.subdistrict ?? "",
+              left.address,
+              left.storeCode,
+            ].join("|");
+            const rightKey = [
+              right.territory ?? "",
+              right.regency ?? "",
+              right.subdistrict ?? "",
+              right.address,
+              right.storeCode,
+            ].join("|");
+
+            return leftKey.localeCompare(rightKey);
+          })
+        : filteredOutlets;
+  const visibleOutlets = normalizedQuery ? sortedOutlets.slice(0, 80) : sortedOutlets.slice(0, 36);
+  const regencyOptions = [
+    ...new Set(
+      outlets
+        .map((outlet) => outlet.regency ?? "")
+        .filter((value) => value.length > 0),
+    ),
+  ].sort((left, right) => left.localeCompare(right));
+  const subdistrictOptions = [
+    ...new Set(
+      outlets
+        .map((outlet) => outlet.subdistrict ?? "")
+        .filter((value) => value.length > 0),
+    ),
+  ].sort((left, right) => left.localeCompare(right));
+  const territoryOptions = [
+    ...new Set(
+      outlets
+        .map((outlet) => outlet.territory ?? "")
+        .filter((value) => value.length > 0),
+    ),
+  ].sort((left, right) => left.localeCompare(right));
   const normalizedRemovedQuery = removedQuery.trim().toLowerCase();
   const visibleRemovedCodes = normalizedRemovedQuery
     ? removedCodes.filter((code) => {
@@ -493,13 +559,13 @@ export function AssignmentManager({
   }
 
   function handleAddAllFiltered() {
-    if (searchedOutlets.length === 0) {
+    if (sortedOutlets.length === 0) {
       return;
     }
 
     const mergedCodes = [...selectedCodes];
 
-    for (const outlet of searchedOutlets) {
+    for (const outlet of sortedOutlets) {
       if (!mergedCodes.includes(outlet.storeCode)) {
         mergedCodes.push(outlet.storeCode);
       }
@@ -508,7 +574,7 @@ export function AssignmentManager({
     setTextareaValue(mergedCodes.join("\n"));
     setRemovedCodes((currentCodes) =>
       currentCodes.filter(
-        (code) => !searchedOutlets.some((outlet) => outlet.storeCode === code),
+        (code) => !sortedOutlets.some((outlet) => outlet.storeCode === code),
       ),
     );
     setSubmitResult(null);
@@ -685,6 +751,10 @@ export function AssignmentManager({
                   setAssignments([]);
                   setLoadError(null);
                   setTextareaValue("");
+                  setRegencyFilter("");
+                  setSubdistrictFilter("");
+                  setTerritoryFilter("");
+                  setSortBy("address");
                   setRemovedCodes([]);
                   setRemovedQuery("");
                   setShowInactiveHistory(false);
@@ -723,7 +793,7 @@ export function AssignmentManager({
                   Outlet Tampil
                 </p>
                 <p className="mt-1 font-medium text-slate-900">
-                  {visibleOutlets.length} / {searchedOutlets.length}
+                  {visibleOutlets.length} / {sortedOutlets.length}
                 </p>
               </div>
             </div>
@@ -1172,14 +1242,79 @@ export function AssignmentManager({
           lalu tambahkan outlet yang dibutuhkan ke assignment field force.
         </p>
 
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <label className="block space-y-2 text-sm font-medium text-slate-700">
+            <span>Filter Kabupaten</span>
+            <select
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => setRegencyFilter(event.target.value)}
+              value={regencyFilter}
+            >
+              <option value="">Semua Kabupaten</option>
+              {regencyOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block space-y-2 text-sm font-medium text-slate-700">
+            <span>Filter Kecamatan</span>
+            <select
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => setSubdistrictFilter(event.target.value)}
+              value={subdistrictFilter}
+            >
+              <option value="">Semua Kecamatan</option>
+              {subdistrictOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block space-y-2 text-sm font-medium text-slate-700">
+            <span>Filter Territory</span>
+            <select
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => setTerritoryFilter(event.target.value)}
+              value={territoryFilter}
+            >
+              <option value="">Semua Territory</option>
+              {territoryOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block space-y-2 text-sm font-medium text-slate-700">
+            <span>Urutkan</span>
+            <select
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) =>
+                setSortBy(event.target.value as "address" | "code" | "territory")
+              }
+              value={sortBy}
+            >
+              <option value="address">Alamat</option>
+              <option value="code">Kode Toko</option>
+              <option value="territory">Territory</option>
+            </select>
+          </label>
+        </div>
+
         <div className="mt-5 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
             <p>
-              Master outlet tersedia: <span className="font-semibold text-slate-900">{searchedOutlets.length}</span> outlet
+              Master outlet tersedia: <span className="font-semibold text-slate-900">{sortedOutlets.length}</span> outlet
             </p>
             <button
               className="rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800 transition hover:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={searchedOutlets.length === 0}
+              disabled={sortedOutlets.length === 0}
               onClick={handleAddAllFiltered}
               type="button"
             >
@@ -1189,13 +1324,19 @@ export function AssignmentManager({
 
           {normalizedQuery ? (
             <p className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
-              Menampilkan hasil pencarian untuk <span className="font-semibold text-slate-900">&quot;{deferredOutletQuery.trim()}&quot;</span>.
+              Menampilkan hasil untuk{" "}
+              <span className="font-semibold text-slate-900">
+                &quot;{deferredOutletQuery.trim()}&quot;
+              </span>
+              {regencyFilter || subdistrictFilter || territoryFilter
+                ? " dengan filter lokasi aktif."
+                : "."}
             </p>
           ) : null}
 
           {visibleOutlets.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
-              Tidak ada outlet yang cocok dengan pencarian.
+              Tidak ada outlet yang cocok dengan pencarian atau filter.
             </p>
           ) : (
             visibleOutlets.map((outlet) => (
@@ -1251,7 +1392,7 @@ export function AssignmentManager({
           )}
         </div>
 
-        {searchedOutlets.length > visibleOutlets.length ? (
+        {sortedOutlets.length > visibleOutlets.length ? (
           <p className="mt-4 text-sm text-slate-500">
             Menampilkan {visibleOutlets.length} outlet pertama. Persempit pencarian untuk melihat hasil lain.
           </p>
