@@ -264,6 +264,7 @@ export function AssignmentManager({
   const [selectedUserId, setSelectedUserId] = useState(users[0]?.id ?? "");
   const [textareaValue, setTextareaValue] = useState("");
   const [outletQuery, setOutletQuery] = useState("");
+  const [selectedMasterDsuk, setSelectedMasterDsuk] = useState("");
   const [territoryGroupFilter, setTerritoryGroupFilter] = useState("");
   const [teamFilter, setTeamFilter] = useState("");
   const [picFilter, setPicFilter] = useState("");
@@ -344,8 +345,8 @@ export function AssignmentManager({
   const territoryGroupOptions = TERRITORY_PIC_MAPPINGS.map((mapping) => mapping.territoryGroup);
   const teamOptions = [...new Set(TERRITORY_PIC_MAPPINGS.map((mapping) => mapping.teamName))];
   const picOptions = [...new Set(TERRITORY_PIC_MAPPINGS.map((mapping) => mapping.picName))];
-  const activeMasterMapping = territoryGroupFilter
-    ? getTerritoryPicMapping(territoryGroupFilter)
+  const activeMasterMapping = selectedMasterDsuk
+    ? getTerritoryPicMapping(selectedMasterDsuk)
     : null;
 
   function getDraftStateLabel(assignment: AssignmentView) {
@@ -818,6 +819,7 @@ export function AssignmentManager({
                   setLoadError(null);
                   setTextareaValue("");
                   setCatalogActionMessage(null);
+                  setSelectedMasterDsuk("");
                   setTerritoryGroupFilter("");
                   setTeamFilter("");
                   setPicFilter("");
@@ -1336,12 +1338,12 @@ export function AssignmentManager({
           <div className="flex flex-wrap gap-2">
             <button
               className={`rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] transition ${
-                territoryGroupFilter === ""
+                selectedMasterDsuk === ""
                   ? "border-slate-900 bg-slate-900 text-white"
                   : "border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-cyan-700"
               }`}
               onClick={() => {
-                setTerritoryGroupFilter("");
+                setSelectedMasterDsuk("");
                 setCatalogActionMessage(null);
               }}
               type="button"
@@ -1351,13 +1353,13 @@ export function AssignmentManager({
             {territoryGroupOptions.map((option) => (
               <button
                 className={`rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] transition ${
-                  territoryGroupFilter === option
+                  selectedMasterDsuk === option
                     ? "border-cyan-700 bg-cyan-700 text-white"
                     : "border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-cyan-700"
                 }`}
                 key={option}
                 onClick={() => {
-                  setTerritoryGroupFilter(option);
+                  setSelectedMasterDsuk(option);
                   setCatalogActionMessage(null);
                 }}
                 type="button"
