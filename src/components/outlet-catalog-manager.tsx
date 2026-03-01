@@ -166,7 +166,7 @@ export function OutletCatalogManager({
   const [territoryFilter, setTerritoryFilter] = useState("");
   const [groupFilter, setGroupFilter] = useState("");
   const [sortBy, setSortBy] = useState<"address" | "code" | "territory" | "group">("address");
-  const [selectedUserId, setSelectedUserId] = useState(users[0]?.id ?? "");
+  const [selectedUserId, setSelectedUserId] = useState("");
   const [activeAssignedCodes, setActiveAssignedCodes] = useState<string[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [assignFeedback, setAssignFeedback] = useState<string | null>(null);
@@ -412,11 +412,16 @@ export function OutletCatalogManager({
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
               onChange={(event) => {
                 setSelectedUserId(event.target.value);
+                setActiveAssignedCodes([]);
+                setLoadError(null);
                 setAssignError(null);
                 setAssignFeedback(null);
               }}
               value={selectedUserId}
             >
+              {users.length > 0 ? (
+                <option value="">Pilih field force dulu</option>
+              ) : null}
               {users.length === 0 ? (
                 <option value="">Belum ada user field force</option>
               ) : null}
@@ -578,7 +583,9 @@ export function OutletCatalogManager({
             <span className="font-semibold text-slate-900">{sortedOutlets.length}</span> outlet
           </p>
           <p className="text-xs text-slate-500">
-            Tombol Add akan merge outlet ke assignment aktif user yang dipilih.
+            {!selectedUser
+              ? "Pilih field force dulu supaya tombol Add aktif."
+              : "Tombol Add akan merge outlet ke assignment aktif user yang dipilih."}
           </p>
         </div>
       </section>
