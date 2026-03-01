@@ -76,14 +76,23 @@ function buildOutletSearchText(outlet: OutletCatalogView) {
 function OutletCatalogCard({
   actionDisabled,
   actionLabel,
+  actionVariant,
   onAction,
   outlet,
 }: {
   actionDisabled?: boolean;
   actionLabel?: string;
+  actionVariant?: "add" | "remove" | "restore";
   onAction?: () => void;
   outlet: OutletCatalogView;
 }) {
+  const actionClassName =
+    actionVariant === "remove"
+      ? "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300"
+      : actionVariant === "restore"
+        ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300"
+        : "border-cyan-200 bg-cyan-50 text-cyan-800 hover:border-cyan-300";
+
   return (
     <article className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm shadow-slate-900/5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -96,7 +105,7 @@ function OutletCatalogCard({
         </div>
         {onAction && actionLabel ? (
           <button
-            className="rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800 transition hover:border-cyan-300 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
+            className={`rounded-2xl border px-3 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500 ${actionClassName}`}
             disabled={actionDisabled}
             onClick={onAction}
             type="button"
@@ -167,7 +176,8 @@ export function OutletCatalogManager({
   const [groupFilter, setGroupFilter] = useState("");
   const [sortBy, setSortBy] = useState<"address" | "code" | "territory" | "group">("address");
   const [selectedUserId, setSelectedUserId] = useState("");
-  const [activeAssignedCodes, setActiveAssignedCodes] = useState<string[]>([]);
+  const [savedAssignedCodes, setSavedAssignedCodes] = useState<string[]>([]);
+  const [draftAssignedCodes, setDraftAssignedCodes] = useState<string[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [assignFeedback, setAssignFeedback] = useState<string | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
@@ -175,7 +185,10 @@ export function OutletCatalogManager({
   const deferredQuery = useDeferredValue(query);
   const normalizedQuery = deferredQuery.trim().toLowerCase();
   const selectedUser = users.find((user) => user.id === selectedUserId) ?? null;
-  const activeAssignedCodeSet = new Set(activeAssignedCodes);
+  const savedAssignedCodeSet = new Set(savedAssignedCodes);
+  const draftAssignedCodeSet = new Set(draftAssignedCodes);
+  const pendingAddCount = draftAssignedCodes.filter((code) => !savedAssignedCodeSet.has(code)).length;
+  const pendingRemoveCount = savedAssignedCodes.filter((code) => !draftAssignedCodeSet.has(code)).length;
 
   const regencyOptions = [
     ...new Set(
@@ -297,7 +310,8 @@ export function OutletCatalogManager({
         }
 
         if (!response.ok) {
-          setActiveAssignedCodes([]);
+          setSavedAssignedCodes([]);
+          setDraftAssignedCodes([]);
           setLoadError(payload.message ?? "Unable to load assignments.");
           return;
         }
@@ -306,10 +320,12 @@ export function OutletCatalogManager({
           .filter((assignment) => assignment.active)
           .map((assignment) => assignment.kodeToko);
 
-        setActiveAssignedCodes(nextActiveCodes);
+        setSavedAssignedCodes(nextActiveCodes);
+        setDraftAssignedCodes(nextActiveCodes);
       } catch (error) {
         if (!cancelled) {
-          setActiveAssignedCodes([]);
+          setSavedAssignedCodes([]);
+          setDraftAssignedCodes([]);
           setLoadError(error instanceof Error ? error.message : "Unable to load assignments.");
         }
       }
@@ -320,7 +336,43 @@ export function OutletCatalogManager({
     };
   }, [selectedUserId]);
 
-  function submitMergedAssignments(nextCodes: string[]) {
+  function handleStageOutlet(storeCode: string) {
+    if (draftAssignedCodeSet.has(storeCode)) {
+      return;
+    }
+
+    setDraftAssignedCodes((currentCodes) => [...currentCodes, storeCode]);
+    setAssignError(null);
+    setAssignFeedback(null);
+  }
+
+  function handleUnstageOutlet(storeCode: string) {
+    setDraftAssignedCodes((currentCodes) =>
+      currentCodes.filter((code) => code !== storeCode),
+    );
+    setAssignError(null);
+    setAssignFeedback(null);
+  }
+
+  function handleRestoreOutlet(storeCode: string) {
+    handleStageOutlet(storeCode);
+  }
+
+  function handleStageAllFiltered() {
+    const mergedCodes = [...draftAssignedCodes];
+
+    for (const outlet of sortedOutlets) {
+      if (!mergedCodes.includes(outlet.storeCode)) {
+        mergedCodes.push(outlet.storeCode);
+      }
+    }
+
+    setDraftAssignedCodes(mergedCodes);
+    setAssignError(null);
+    setAssignFeedback(null);
+  }
+
+  function submitAssignments(nextCodes: string[]) {
     if (!selectedUser) {
       setAssignError("Pilih field force dulu sebelum add outlet.");
       return;
@@ -349,7 +401,8 @@ export function OutletCatalogManager({
             return;
           }
 
-          setActiveAssignedCodes(nextCodes);
+          setSavedAssignedCodes(nextCodes);
+          setDraftAssignedCodes(nextCodes);
           setAssignFeedback(
             `Assignment ${selectedUser.name} diperbarui. Aktif ${payload.assignedCount} outlet.`,
           );
@@ -358,26 +411,6 @@ export function OutletCatalogManager({
         }
       })();
     });
-  }
-
-  function handleAssignOutlet(storeCode: string) {
-    if (activeAssignedCodeSet.has(storeCode)) {
-      return;
-    }
-
-    submitMergedAssignments([...activeAssignedCodes, storeCode]);
-  }
-
-  function handleAssignAllFiltered() {
-    const mergedCodes = [...activeAssignedCodes];
-
-    for (const outlet of sortedOutlets) {
-      if (!mergedCodes.includes(outlet.storeCode)) {
-        mergedCodes.push(outlet.storeCode);
-      }
-    }
-
-    submitMergedAssignments(mergedCodes);
   }
 
   return (
@@ -401,8 +434,8 @@ export function OutletCatalogManager({
 
         <p className="mt-3 text-sm leading-6 text-slate-600">
           Semua outlet hasil import tampil di sini agar lebih lega dibaca. Gunakan filter lokasi,
-          territory, dan group untuk menentukan outlet mana yang ingin langsung kamu assign ke
-          field force terpilih.
+          territory, dan group untuk menentukan outlet mana yang ingin kamu stage dulu sebelum
+          disimpan ke assignment field force terpilih.
         </p>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
@@ -412,7 +445,8 @@ export function OutletCatalogManager({
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
               onChange={(event) => {
                 setSelectedUserId(event.target.value);
-                setActiveAssignedCodes([]);
+                setSavedAssignedCodes([]);
+                setDraftAssignedCodes([]);
                 setLoadError(null);
                 setAssignError(null);
                 setAssignFeedback(null);
@@ -436,14 +470,14 @@ export function OutletCatalogManager({
           <button
             className="rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm font-semibold text-cyan-800 transition hover:border-cyan-300 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
             disabled={isAssignPending || !selectedUser || sortedOutlets.length === 0}
-            onClick={handleAssignAllFiltered}
+            onClick={handleStageAllFiltered}
             type="button"
           >
-            {isAssignPending ? "Saving..." : "Add All Filtered"}
+            Stage All Filtered
           </button>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="mt-4 grid gap-3 sm:grid-cols-4">
           <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
               Field Force Aktif
@@ -452,9 +486,15 @@ export function OutletCatalogManager({
           </div>
           <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Assignment Aktif
+              Assignment Tersimpan
             </p>
-            <p className="mt-1 font-medium text-slate-900">{activeAssignedCodes.length}</p>
+            <p className="mt-1 font-medium text-slate-900">{savedAssignedCodes.length}</p>
+          </div>
+          <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Draft Assignment
+            </p>
+            <p className="mt-1 font-medium text-slate-900">{draftAssignedCodes.length}</p>
           </div>
           <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -462,6 +502,52 @@ export function OutletCatalogManager({
             </p>
             <p className="mt-1 font-medium text-slate-900">{sortedOutlets.length}</p>
           </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-500">
+              Pending Add
+            </p>
+            <p className="mt-1 font-medium text-emerald-800">{pendingAddCount}</p>
+          </div>
+          <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-500">
+              Pending Remove
+            </p>
+            <p className="mt-1 font-medium text-rose-800">{pendingRemoveCount}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={
+              isAssignPending ||
+              !selectedUser ||
+              (pendingAddCount === 0 && pendingRemoveCount === 0)
+            }
+            onClick={() => submitAssignments(draftAssignedCodes)}
+            type="button"
+          >
+            {isAssignPending ? "Saving..." : "Save Assignment"}
+          </button>
+          <button
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={
+              isAssignPending ||
+              !selectedUser ||
+              (pendingAddCount === 0 && pendingRemoveCount === 0)
+            }
+            onClick={() => {
+              setDraftAssignedCodes(savedAssignedCodes);
+              setAssignError(null);
+              setAssignFeedback(null);
+            }}
+            type="button"
+          >
+            Reset Draft
+          </button>
         </div>
 
         {loadError ? (
@@ -584,8 +670,8 @@ export function OutletCatalogManager({
           </p>
           <p className="text-xs text-slate-500">
             {!selectedUser
-              ? "Pilih field force dulu supaya tombol Add aktif."
-              : "Tombol Add akan merge outlet ke assignment aktif user yang dipilih."}
+              ? "Pilih field force dulu supaya tombol action aktif."
+              : "Tombol Add/Remove hanya mengubah draft. Tekan Save Assignment untuk menyimpan."}
           </p>
         </div>
       </section>
@@ -597,15 +683,43 @@ export function OutletCatalogManager({
           </p>
         ) : (
           <div className="space-y-4">
-            {visibleOutlets.map((outlet) => (
-              <OutletCatalogCard
-                actionDisabled={isAssignPending || !selectedUser || activeAssignedCodeSet.has(outlet.storeCode)}
-                actionLabel={activeAssignedCodeSet.has(outlet.storeCode) ? "Assigned" : "Add"}
-                key={outlet.id}
-                onAction={() => handleAssignOutlet(outlet.storeCode)}
-                outlet={outlet}
-              />
-            ))}
+            {visibleOutlets.map((outlet) => {
+                const isInSavedAssignment = savedAssignedCodeSet.has(outlet.storeCode);
+                const isInDraftAssignment = draftAssignedCodeSet.has(outlet.storeCode);
+                const actionLabel = isInDraftAssignment
+                  ? "Remove"
+                  : isInSavedAssignment
+                    ? "Restore"
+                    : "Add";
+                const actionVariant = isInDraftAssignment
+                  ? "remove"
+                  : isInSavedAssignment
+                    ? "restore"
+                    : "add";
+
+                return (
+                  <OutletCatalogCard
+                    actionDisabled={isAssignPending || !selectedUser}
+                    actionLabel={actionLabel}
+                    actionVariant={actionVariant}
+                    key={outlet.id}
+                    onAction={() => {
+                      if (isInDraftAssignment) {
+                        handleUnstageOutlet(outlet.storeCode);
+                        return;
+                      }
+
+                      if (isInSavedAssignment) {
+                        handleRestoreOutlet(outlet.storeCode);
+                        return;
+                      }
+
+                      handleStageOutlet(outlet.storeCode);
+                    }}
+                    outlet={outlet}
+                  />
+                );
+              })}
           </div>
         )}
 
