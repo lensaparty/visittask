@@ -105,6 +105,10 @@ export function DutyToggle({
   const router = useRouter();
   const hasGeolocation =
     typeof navigator !== "undefined" && "geolocation" in navigator;
+  const isSecureOrigin =
+    typeof window !== "undefined" && window.isSecureContext;
+  const currentOrigin =
+    typeof window !== "undefined" ? window.location.origin : null;
   const [activeSessionId, setActiveSessionId] = useState(initialActiveSessionId);
   const [latestPosition, setLatestPosition] = useState<PingPayload | null>(null);
   const [lastSentAt, setLastSentAt] = useState<string | null>(null);
@@ -174,6 +178,13 @@ export function DutyToggle({
   }, [activeSessionId, hasGeolocation]);
 
   function handleStart() {
+    if (!isSecureOrigin) {
+      setMessage(
+        "Browser HP memblokir GPS karena halaman dibuka lewat HTTP pada IP lokal. Buka app lewat HTTPS tunnel atau localhost di device yang sama.",
+      );
+      return;
+    }
+
     setMessage(null);
 
     startTransition(() => {
@@ -230,7 +241,7 @@ export function DutyToggle({
             ? "bg-rose-600 hover:bg-rose-500"
             : "bg-cyan-600 hover:bg-cyan-500"
         } disabled:cursor-not-allowed disabled:opacity-70`}
-        disabled={isPending}
+        disabled={isPending || (!activeSessionId && (!hasGeolocation || !isSecureOrigin))}
         onClick={activeSessionId ? handleStop : handleStart}
         type="button"
       >
@@ -245,6 +256,16 @@ export function DutyToggle({
       <p className="text-xs font-medium text-slate-500">
         {activeSessionId ? "Duty is ON. Pings sent every 45s." : "Duty is OFF."}
       </p>
+      {!activeSessionId && hasGeolocation && !isSecureOrigin ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+          <p className="font-semibold">GPS diblokir oleh browser.</p>
+          <p className="mt-1 leading-5">
+            Halaman ini dibuka dari <span className="font-semibold">{currentOrigin}</span> yang
+            belum aman untuk geolocation di HP. Pakai HTTPS tunnel (misalnya `ngrok` / `cloudflared`)
+            atau buka `localhost` di device yang sama.
+          </p>
+        </div>
+      ) : null}
       {activeSessionId ? (
         <div className="space-y-1 text-xs text-slate-500">
           <p>

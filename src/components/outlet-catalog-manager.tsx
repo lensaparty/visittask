@@ -52,6 +52,11 @@ function formatCoordinate(value: number) {
   return value.toFixed(6);
 }
 
+function formatLocalDate(date: Date) {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 10);
+}
+
 function buildOutletSearchText(outlet: OutletCatalogView) {
   return [
     outlet.storeCode,
@@ -445,11 +450,45 @@ export function OutletCatalogManager({
             return;
           }
 
+          const today = formatLocalDate(new Date());
+          let nextFeedback =
+            `Assignment ${selectedUser.name} diperbarui. Aktif ${payload.assignedCount} outlet.`;
+
+          try {
+            const generateResponse = await fetch("/api/tasks/generate", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                from: today,
+                to: today,
+              }),
+            });
+            const generatePayload = (await generateResponse.json().catch(() => ({}))) as {
+              message?: string;
+              created?: number;
+              skipped?: number;
+            };
+
+            if (!generateResponse.ok) {
+              nextFeedback = `Assignment ${selectedUser.name} disimpan, tapi generate hari ini gagal: ${
+                generatePayload.message ?? "unknown error"
+              }`;
+            } else {
+              nextFeedback = `Assignment ${selectedUser.name} disimpan. Generate hari ini: created ${
+                generatePayload.created ?? 0
+              }, skipped ${generatePayload.skipped ?? 0}.`;
+            }
+          } catch (generateError) {
+            nextFeedback = `Assignment ${selectedUser.name} disimpan, tapi generate hari ini gagal: ${
+              generateError instanceof Error ? generateError.message : "unknown error"
+            }`;
+          }
+
           setSavedAssignedCodes(nextCodes);
           setDraftAssignedCodes(nextCodes);
-          setAssignFeedback(
-            `Assignment ${selectedUser.name} diperbarui. Aktif ${payload.assignedCount} outlet.`,
-          );
+          setAssignFeedback(nextFeedback);
         } catch (error) {
           setAssignError(error instanceof Error ? error.message : "Unable to save assignments.");
         }
