@@ -20,6 +20,7 @@ export default async function AdminImportPage() {
         </p>
       </section>
       <OutletImportForm
+        allowReset
         buttonLabel="Upload Workbook"
         description="The first worksheet will be parsed and imported. Existing outlets are matched by Kode Toko and updated."
         title="Outlet Data"
