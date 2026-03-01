@@ -372,6 +372,20 @@ export function OutletCatalogManager({
     setAssignFeedback(null);
   }
 
+  function handleUnstageAllFiltered() {
+    if (sortedOutlets.length === 0) {
+      return;
+    }
+
+    const filteredCodeSet = new Set(sortedOutlets.map((outlet) => outlet.storeCode));
+
+    setDraftAssignedCodes((currentCodes) =>
+      currentCodes.filter((code) => !filteredCodeSet.has(code)),
+    );
+    setAssignError(null);
+    setAssignFeedback(null);
+  }
+
   function submitAssignments(nextCodes: string[]) {
     if (!selectedUser) {
       setAssignError("Pilih field force dulu sebelum add outlet.");
@@ -438,7 +452,7 @@ export function OutletCatalogManager({
           disimpan ke assignment field force terpilih.
         </p>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
           <label className="block space-y-2 text-sm font-medium text-slate-700">
             <span>Field Force Tujuan</span>
             <select
@@ -474,6 +488,14 @@ export function OutletCatalogManager({
             type="button"
           >
             Stage All Filtered
+          </button>
+          <button
+            className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:border-rose-300 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
+            disabled={isAssignPending || !selectedUser || sortedOutlets.length === 0}
+            onClick={handleUnstageAllFiltered}
+            type="button"
+          >
+            Remove All Filtered
           </button>
         </div>
 
@@ -674,6 +696,52 @@ export function OutletCatalogManager({
               : "Tombol Add/Remove hanya mengubah draft. Tekan Save Assignment untuk menyimpan."}
           </p>
         </div>
+      </section>
+
+      <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
+              Draft Codes
+            </p>
+            <h3 className="mt-2 text-xl font-semibold text-slate-900">
+              Kode outlet yang sedang di-stage
+            </h3>
+          </div>
+          <p className="text-sm text-slate-500">{draftAssignedCodes.length} kode di draft saat ini</p>
+        </div>
+
+        {draftAssignedCodes.length === 0 ? (
+          <p className="mt-4 rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
+            Belum ada outlet di draft. Klik Add atau Stage All Filtered untuk mulai menyusun assignment.
+          </p>
+        ) : (
+          <div className="mt-4 rounded-2xl bg-slate-100 px-4 py-4">
+            <div className="flex flex-wrap gap-2">
+              {draftAssignedCodes.map((code) => {
+                const isPendingAdd = !savedAssignedCodeSet.has(code);
+
+                return (
+                  <button
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold tracking-[0.12em] transition ${
+                      isPendingAdd
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                    }`}
+                    key={code}
+                    onClick={() => handleUnstageOutlet(code)}
+                    type="button"
+                  >
+                    {code}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-xs text-slate-500">
+              Klik chip kode untuk remove dari draft. Chip hijau berarti outlet baru ditambahkan dan belum disimpan.
+            </p>
+          </div>
+        )}
       </section>
 
       <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
