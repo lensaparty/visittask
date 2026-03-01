@@ -156,7 +156,6 @@ function OutletDetailCard({
     territory: string | null;
     territoryGroup: string | null;
     teamName?: string | null;
-    picName?: string | null;
     supervisorName: string | null;
     noTelpSpv: string | null;
     typeOutlet: string | null;
@@ -173,6 +172,10 @@ function OutletDetailCard({
       : actionVariant === "restore"
         ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300"
       : "border-cyan-200 bg-cyan-50 text-cyan-800 hover:border-cyan-300";
+  const matchedDistrictCode = normalizeTerritoryGroup(outlet.district);
+  const districtBadgeLabel = matchedDistrictCode.startsWith("DSUK")
+    ? matchedDistrictCode
+    : null;
 
   return (
     <article className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm shadow-slate-900/5">
@@ -184,6 +187,13 @@ function OutletDetailCard({
           <h3 className="mt-1 text-base font-semibold text-slate-900">
             {outlet.namaToko}
           </h3>
+          {districtBadgeLabel ? (
+            <p className="mt-2">
+              <span className="inline-flex rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">
+                Matched by District: {districtBadgeLabel}
+              </span>
+            </p>
+          ) : null}
           <p className="mt-2 text-sm leading-6 text-slate-600">{outlet.alamat}</p>
         </div>
         {onAction && actionLabel ? (
@@ -1031,7 +1041,6 @@ export function AssignmentManager({
                       territory: outlet.territory,
                       territoryGroup: displayMapping?.territoryGroup ?? outlet.territoryGroup,
                       teamName: displayMapping?.teamName ?? null,
-                      picName: displayMapping?.picName ?? null,
                       supervisorName: outlet.supervisorName,
                       noTelpSpv: outlet.supervisorPhone,
                       typeOutlet: outlet.typeOutlet,
@@ -1126,7 +1135,6 @@ export function AssignmentManager({
                       territory: outlet.territory,
                       territoryGroup: displayMapping?.territoryGroup ?? outlet.territoryGroup,
                       teamName: displayMapping?.teamName ?? null,
-                      picName: displayMapping?.picName ?? null,
                       supervisorName: outlet.supervisorName,
                       noTelpSpv: outlet.supervisorPhone,
                       typeOutlet: outlet.typeOutlet,
@@ -1316,7 +1324,6 @@ export function AssignmentManager({
                           territoryGroup:
                             displayMapping?.territoryGroup ?? assignment.territoryGroup,
                           teamName: displayMapping?.teamName ?? null,
-                          picName: displayMapping?.picName ?? null,
                         };
                       })()}
                     />
@@ -1551,7 +1558,6 @@ export function AssignmentManager({
                       territoryGroup:
                         displayMapping?.territoryGroup ?? outlet.territoryGroup,
                       teamName: displayMapping?.teamName ?? null,
-                      picName: displayMapping?.picName ?? null,
                       supervisorName: outlet.supervisorName,
                       noTelpSpv: outlet.supervisorPhone,
                       typeOutlet: outlet.typeOutlet,

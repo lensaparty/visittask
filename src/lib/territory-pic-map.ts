@@ -1,95 +1,26 @@
 export type TerritoryPicMapping = {
   teamName: string;
   territoryGroup: string;
-  picName: string;
 };
 
 export const TERRITORY_PIC_MAPPINGS: TerritoryPicMapping[] = [
-  {
-    teamName: "Phoenix",
-    territoryGroup: "DSUK001",
-    picName: "Moh Ikbal Awaluddin",
-  },
-  {
-    teamName: "Vamos",
-    territoryGroup: "DSUK002",
-    picName: "R Hardi Rahadian Gusman",
-  },
-  {
-    teamName: "Southern",
-    territoryGroup: "DSUK003",
-    picName: "Anwar Chairul",
-  },
-  {
-    teamName: "Vamos",
-    territoryGroup: "DSUK004",
-    picName: "Arsya Malika Atmaja",
-  },
-  {
-    teamName: "Phoenix",
-    territoryGroup: "DSUK005",
-    picName: "Muhammad Faturrahman",
-  },
-  {
-    teamName: "Vamos",
-    territoryGroup: "DSUK006",
-    picName: "Wahyu Wicaksono",
-  },
-  {
-    teamName: "Phoenix",
-    territoryGroup: "DSUK007",
-    picName: "Angki Febiyandi",
-  },
-  {
-    teamName: "Southern",
-    territoryGroup: "DSUK008",
-    picName: "Joddy Laslihardo",
-  },
-  {
-    teamName: "Southern",
-    territoryGroup: "DSUK009",
-    picName: "Imam Munsyarif",
-  },
-  {
-    teamName: "North",
-    territoryGroup: "DSUK010",
-    picName: "Fardiansyah Fardiansyah",
-  },
-  {
-    teamName: "Inferno",
-    territoryGroup: "DSUK011",
-    picName: "Bachtiyar Arif Ibrahim",
-  },
-  {
-    teamName: "Pakidulan Troops",
-    territoryGroup: "DSUK012",
-    picName: "Dedi Yusfardi",
-  },
-  {
-    teamName: "North",
-    territoryGroup: "DSUK013",
-    picName: "Ami Utari",
-  },
-  {
-    teamName: "Inferno",
-    territoryGroup: "DSUK014",
-    picName: "Deny Miharja",
-  },
-  {
-    teamName: "Inferno",
-    territoryGroup: "DSUK015",
-    picName: "Yopi Sopyan Juhri",
-  },
-  {
-    teamName: "Pakidulan Troops",
-    territoryGroup: "DSUK016",
-    picName: "Yoka Kalparizal",
-  },
-  {
-    teamName: "Pakidulan Troops",
-    territoryGroup: "DSUK017",
-    picName: "Jeremia Perwira Negara",
-  },
+  { teamName: "Phoenix", territoryGroup: "DSUK001" },
+  { teamName: "Vamos", territoryGroup: "DSUK002" },
+  { teamName: "Southern", territoryGroup: "DSUK003" },
+  { teamName: "Vamos", territoryGroup: "DSUK004" },
+  { teamName: "Phoenix", territoryGroup: "DSUK005" },
+  { teamName: "Vamos", territoryGroup: "DSUK006" },
+  { teamName: "Phoenix", territoryGroup: "DSUK007" },
+  { teamName: "Southern", territoryGroup: "DSUK008" },
+  { teamName: "Southern", territoryGroup: "DSUK009" },
+  { teamName: "North", territoryGroup: "DSUK010" },
+  { teamName: "Inferno", territoryGroup: "DSUK011" },
+  { teamName: "Pakidulan Troops", territoryGroup: "DSUK012" },
+  { teamName: "North", territoryGroup: "DSUK013" },
+  { teamName: "Inferno", territoryGroup: "DSUK014" },
+  { teamName: "Inferno", territoryGroup: "DSUK015" },
+  { teamName: "Pakidulan Troops", territoryGroup: "DSUK016" },
+  { teamName: "Pakidulan Troops", territoryGroup: "DSUK017" },
 ];
 
 export function normalizeTerritoryGroup(value: string | null | undefined) {
