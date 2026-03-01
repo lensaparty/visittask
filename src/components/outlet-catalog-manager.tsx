@@ -178,6 +178,7 @@ export function OutletCatalogManager({
   const [selectedUserId, setSelectedUserId] = useState("");
   const [savedAssignedCodes, setSavedAssignedCodes] = useState<string[]>([]);
   const [draftAssignedCodes, setDraftAssignedCodes] = useState<string[]>([]);
+  const [catalogVisibleCount, setCatalogVisibleCount] = useState(12);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [assignFeedback, setAssignFeedback] = useState<string | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
@@ -287,7 +288,10 @@ export function OutletCatalogManager({
             })
           : filteredOutlets;
 
-  const visibleOutlets = normalizedQuery ? sortedOutlets.slice(0, 120) : sortedOutlets.slice(0, 60);
+  const availableOutlets = sortedOutlets.filter(
+    (outlet) => !draftAssignedCodeSet.has(outlet.storeCode),
+  );
+  const visibleOutlets = availableOutlets.slice(0, catalogVisibleCount);
 
   useEffect(() => {
     if (!selectedUserId) {
@@ -322,10 +326,12 @@ export function OutletCatalogManager({
 
         setSavedAssignedCodes(nextActiveCodes);
         setDraftAssignedCodes(nextActiveCodes);
+        setCatalogVisibleCount(12);
       } catch (error) {
         if (!cancelled) {
           setSavedAssignedCodes([]);
           setDraftAssignedCodes([]);
+          setCatalogVisibleCount(12);
           setLoadError(error instanceof Error ? error.message : "Unable to load assignments.");
         }
       }
@@ -342,6 +348,7 @@ export function OutletCatalogManager({
     }
 
     setDraftAssignedCodes((currentCodes) => [...currentCodes, storeCode]);
+    setCatalogVisibleCount(12);
     setAssignError(null);
     setAssignFeedback(null);
   }
@@ -350,6 +357,7 @@ export function OutletCatalogManager({
     setDraftAssignedCodes((currentCodes) =>
       currentCodes.filter((code) => code !== storeCode),
     );
+    setCatalogVisibleCount(12);
     setAssignError(null);
     setAssignFeedback(null);
   }
@@ -368,6 +376,7 @@ export function OutletCatalogManager({
     }
 
     setDraftAssignedCodes(mergedCodes);
+    setCatalogVisibleCount(12);
     setAssignError(null);
     setAssignFeedback(null);
   }
@@ -382,6 +391,7 @@ export function OutletCatalogManager({
     setDraftAssignedCodes((currentCodes) =>
       currentCodes.filter((code) => !filteredCodeSet.has(code)),
     );
+    setCatalogVisibleCount(12);
     setAssignError(null);
     setAssignFeedback(null);
   }
@@ -461,6 +471,7 @@ export function OutletCatalogManager({
                 setSelectedUserId(event.target.value);
                 setSavedAssignedCodes([]);
                 setDraftAssignedCodes([]);
+                setCatalogVisibleCount(12);
                 setLoadError(null);
                 setAssignError(null);
                 setAssignFeedback(null);
@@ -523,6 +534,7 @@ export function OutletCatalogManager({
               Hasil Filter
             </p>
             <p className="mt-1 font-medium text-slate-900">{sortedOutlets.length}</p>
+            <p className="mt-1 text-xs text-slate-500">{availableOutlets.length} siap dipilih</p>
           </div>
         </div>
 
@@ -594,7 +606,10 @@ export function OutletCatalogManager({
           <span>Cari Outlet</span>
           <input
             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setCatalogVisibleCount(12);
+            }}
             placeholder="Cari kode toko, nama, alamat, kecamatan, group, supervisor, koordinat"
             value={query}
           />
@@ -608,6 +623,7 @@ export function OutletCatalogManager({
               onChange={(event) => {
                 setRegencyFilter(event.target.value);
                 setSubdistrictFilter("");
+                setCatalogVisibleCount(12);
               }}
               value={regencyFilter}
             >
@@ -624,7 +640,10 @@ export function OutletCatalogManager({
             <span>Filter Kecamatan</span>
             <select
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-              onChange={(event) => setSubdistrictFilter(event.target.value)}
+              onChange={(event) => {
+                setSubdistrictFilter(event.target.value);
+                setCatalogVisibleCount(12);
+              }}
               value={subdistrictFilter}
             >
               <option value="">Semua Kecamatan</option>
@@ -640,7 +659,10 @@ export function OutletCatalogManager({
             <span>Filter Territory</span>
             <select
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-              onChange={(event) => setTerritoryFilter(event.target.value)}
+              onChange={(event) => {
+                setTerritoryFilter(event.target.value);
+                setCatalogVisibleCount(12);
+              }}
               value={territoryFilter}
             >
               <option value="">Semua Territory</option>
@@ -656,7 +678,10 @@ export function OutletCatalogManager({
             <span>Filter Group</span>
             <select
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-              onChange={(event) => setGroupFilter(event.target.value)}
+              onChange={(event) => {
+                setGroupFilter(event.target.value);
+                setCatalogVisibleCount(12);
+              }}
               value={groupFilter}
             >
               <option value="">Semua Group</option>
@@ -673,7 +698,10 @@ export function OutletCatalogManager({
             <select
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
               onChange={(event) =>
-                setSortBy(event.target.value as "address" | "code" | "territory" | "group")
+                {
+                  setSortBy(event.target.value as "address" | "code" | "territory" | "group");
+                  setCatalogVisibleCount(12);
+                }
               }
               value={sortBy}
             >
@@ -687,13 +715,13 @@ export function OutletCatalogManager({
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
           <p>
-            Master outlet tersedia:{" "}
-            <span className="font-semibold text-slate-900">{sortedOutlets.length}</span> outlet
+            Pilihan outlet tersedia:{" "}
+            <span className="font-semibold text-slate-900">{availableOutlets.length}</span> outlet
           </p>
           <p className="text-xs text-slate-500">
             {!selectedUser
               ? "Pilih field force dulu supaya tombol action aktif."
-              : "Tombol Add/Remove hanya mengubah draft. Tekan Save Assignment untuk menyimpan."}
+              : "Outlet yang sudah di-add disembunyikan dari daftar pilihan. Tekan Save Assignment untuk menyimpan."}
           </p>
         </div>
       </section>
@@ -791,11 +819,19 @@ export function OutletCatalogManager({
           </div>
         )}
 
-        {sortedOutlets.length > visibleOutlets.length ? (
-          <p className="mt-4 text-sm text-slate-500">
-            Menampilkan {visibleOutlets.length} outlet pertama. Persempit filter untuk melihat
-            hasil lain.
-          </p>
+        {availableOutlets.length > visibleOutlets.length ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-slate-500">
+              Menampilkan {visibleOutlets.length} dari {availableOutlets.length} outlet pilihan.
+            </p>
+            <button
+              className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
+              onClick={() => setCatalogVisibleCount((currentCount) => currentCount + 12)}
+              type="button"
+            >
+              Load More
+            </button>
+          </div>
         ) : null}
       </section>
     </div>
