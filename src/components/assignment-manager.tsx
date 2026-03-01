@@ -335,6 +335,9 @@ export function AssignmentManager({
   const territoryGroupOptions = TERRITORY_PIC_MAPPINGS.map((mapping) => mapping.territoryGroup);
   const teamOptions = [...new Set(TERRITORY_PIC_MAPPINGS.map((mapping) => mapping.teamName))];
   const picOptions = [...new Set(TERRITORY_PIC_MAPPINGS.map((mapping) => mapping.picName))];
+  const activeMasterMapping = territoryGroupFilter
+    ? getTerritoryPicMapping(territoryGroupFilter)
+    : null;
 
   function getDraftStateLabel(assignment: AssignmentView) {
     if (assignment.active) {
@@ -534,6 +537,33 @@ export function AssignmentManager({
         }
       })();
     });
+  }
+
+  function resolveDisplayMapping(territoryGroup: string | null | undefined) {
+    return activeMasterMapping ?? getTerritoryPicMapping(territoryGroup);
+  }
+
+  function handleAddAllFiltered() {
+    if (searchedOutlets.length === 0) {
+      return;
+    }
+
+    const mergedCodes = [...selectedCodes];
+
+    for (const outlet of searchedOutlets) {
+      if (!mergedCodes.includes(outlet.storeCode)) {
+        mergedCodes.push(outlet.storeCode);
+      }
+    }
+
+    setTextareaValue(mergedCodes.join("\n"));
+    setRemovedCodes((currentCodes) =>
+      currentCodes.filter(
+        (code) => !searchedOutlets.some((outlet) => outlet.storeCode === code),
+      ),
+    );
+    setSubmitResult(null);
+    setSubmitError(null);
   }
 
   function handleExportAssignments() {
@@ -877,6 +907,8 @@ export function AssignmentManager({
                   );
                 }
 
+                const displayMapping = resolveDisplayMapping(outlet.territoryGroup);
+
                 return (
                   <OutletDetailCard
                     actionLabel="Remove"
@@ -891,9 +923,9 @@ export function AssignmentManager({
                       kabupaten: outlet.regency,
                       district: outlet.district,
                       territory: outlet.territory,
-                      territoryGroup: outlet.territoryGroup,
-                      teamName: getTerritoryPicMapping(outlet.territoryGroup)?.teamName ?? null,
-                      picName: getTerritoryPicMapping(outlet.territoryGroup)?.picName ?? null,
+                      territoryGroup: displayMapping?.territoryGroup ?? outlet.territoryGroup,
+                      teamName: displayMapping?.teamName ?? null,
+                      picName: displayMapping?.picName ?? null,
                       supervisorName: outlet.supervisorName,
                       noTelpSpv: outlet.supervisorPhone,
                       typeOutlet: outlet.typeOutlet,
@@ -967,6 +999,8 @@ export function AssignmentManager({
                   );
                 }
 
+                const displayMapping = resolveDisplayMapping(outlet.territoryGroup);
+
                 return (
                   <OutletDetailCard
                     actionLabel="Restore"
@@ -981,9 +1015,9 @@ export function AssignmentManager({
                       kabupaten: outlet.regency,
                       district: outlet.district,
                       territory: outlet.territory,
-                      territoryGroup: outlet.territoryGroup,
-                      teamName: getTerritoryPicMapping(outlet.territoryGroup)?.teamName ?? null,
-                      picName: getTerritoryPicMapping(outlet.territoryGroup)?.picName ?? null,
+                      territoryGroup: displayMapping?.territoryGroup ?? outlet.territoryGroup,
+                      teamName: displayMapping?.teamName ?? null,
+                      picName: displayMapping?.picName ?? null,
                       supervisorName: outlet.supervisorName,
                       noTelpSpv: outlet.supervisorPhone,
                       typeOutlet: outlet.typeOutlet,
@@ -1162,13 +1196,19 @@ export function AssignmentManager({
 
                         handleRestoreOutlet(assignment.kodeToko);
                       }}
-                      outlet={{
-                        ...assignment,
-                        teamName:
-                          getTerritoryPicMapping(assignment.territoryGroup)?.teamName ?? null,
-                        picName:
-                          getTerritoryPicMapping(assignment.territoryGroup)?.picName ?? null,
-                      }}
+                      outlet={(() => {
+                        const displayMapping = resolveDisplayMapping(
+                          assignment.territoryGroup,
+                        );
+
+                        return {
+                          ...assignment,
+                          territoryGroup:
+                            displayMapping?.territoryGroup ?? assignment.territoryGroup,
+                          teamName: displayMapping?.teamName ?? null,
+                          picName: displayMapping?.picName ?? null,
+                        };
+                      })()}
                     />
                     {!assignment.active ? (
                       <div className="flex justify-end">
@@ -1212,6 +1252,42 @@ export function AssignmentManager({
           kode <span className="font-semibold text-slate-900">territory group DSUK</span> yang dicocokkan
           ke mapping PIC.
         </p>
+
+        <div className="mt-4 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <button
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] transition ${
+                territoryGroupFilter === ""
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-cyan-700"
+              }`}
+              onClick={() => setTerritoryGroupFilter("")}
+              type="button"
+            >
+              Semua DSUK
+            </button>
+            {territoryGroupOptions.map((option) => (
+              <button
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] transition ${
+                  territoryGroupFilter === option
+                    ? "border-cyan-700 bg-cyan-700 text-white"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-cyan-300 hover:text-cyan-700"
+                }`}
+                key={option}
+                onClick={() => setTerritoryGroupFilter(option)}
+                type="button"
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+          {activeMasterMapping ? (
+            <div className="rounded-2xl bg-cyan-50 px-4 py-3 text-sm text-cyan-900">
+              Master DSUK aktif: <span className="font-semibold">{activeMasterMapping.territoryGroup}</span> •{" "}
+              {activeMasterMapping.teamName} • {activeMasterMapping.picName}
+            </div>
+          ) : null}
+        </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           <label className="block space-y-2 text-sm font-medium text-slate-700">
@@ -1264,62 +1340,83 @@ export function AssignmentManager({
         </div>
 
         <div className="mt-5 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+            <p>
+              Hasil filter saat ini: <span className="font-semibold text-slate-900">{searchedOutlets.length}</span> outlet
+            </p>
+            <button
+              className="rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800 transition hover:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={searchedOutlets.length === 0}
+              onClick={handleAddAllFiltered}
+              type="button"
+            >
+              Add All Filtered
+            </button>
+          </div>
+
           {visibleOutlets.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
               Tidak ada outlet yang cocok dengan pencarian.
             </p>
           ) : (
             visibleOutlets.map((outlet) => (
-              <OutletDetailCard
-                actionLabel={
-                  selectedCodeSet.has(outlet.storeCode)
-                    ? "Remove"
-                    : removedCodeSet.has(outlet.storeCode)
-                      ? "Restore"
-                      : "Add"
-                }
-                actionVariant={
-                  selectedCodeSet.has(outlet.storeCode)
-                    ? "remove"
-                    : removedCodeSet.has(outlet.storeCode)
-                      ? "restore"
-                      : "add"
-                }
-                key={outlet.id}
-                onAction={() => {
-                  if (selectedCodeSet.has(outlet.storeCode)) {
-                    handleRemoveOutlet(outlet.storeCode);
-                    return;
-                  }
+              (() => {
+                const displayMapping = resolveDisplayMapping(outlet.territoryGroup);
 
-                  if (removedCodeSet.has(outlet.storeCode)) {
-                    handleRestoreOutlet(outlet.storeCode);
-                    return;
-                  }
+                return (
+                  <OutletDetailCard
+                    actionLabel={
+                      selectedCodeSet.has(outlet.storeCode)
+                        ? "Remove"
+                        : removedCodeSet.has(outlet.storeCode)
+                          ? "Restore"
+                          : "Add"
+                    }
+                    actionVariant={
+                      selectedCodeSet.has(outlet.storeCode)
+                        ? "remove"
+                        : removedCodeSet.has(outlet.storeCode)
+                          ? "restore"
+                          : "add"
+                    }
+                    key={outlet.id}
+                    onAction={() => {
+                      if (selectedCodeSet.has(outlet.storeCode)) {
+                        handleRemoveOutlet(outlet.storeCode);
+                        return;
+                      }
 
-                  handleAddOutlet(outlet.storeCode);
-                }}
-                outlet={{
-                  kodeToko: outlet.storeCode,
-                  namaToko: outlet.name,
-                  alamat: outlet.address,
-                  kecamatan: outlet.subdistrict,
-                  kabupaten: outlet.regency,
-                  district: outlet.district,
-                  territory: outlet.territory,
-                  territoryGroup: outlet.territoryGroup,
-                  teamName: getTerritoryPicMapping(outlet.territoryGroup)?.teamName ?? null,
-                  picName: getTerritoryPicMapping(outlet.territoryGroup)?.picName ?? null,
-                  supervisorName: outlet.supervisorName,
-                  noTelpSpv: outlet.supervisorPhone,
-                  typeOutlet: outlet.typeOutlet,
-                  visualPposm: outlet.visualPposm,
-                  brand: outlet.brand,
-                  ukuran: outlet.size,
-                  lat: outlet.latitude,
-                  lon: outlet.longitude,
-                }}
-              />
+                      if (removedCodeSet.has(outlet.storeCode)) {
+                        handleRestoreOutlet(outlet.storeCode);
+                        return;
+                      }
+
+                      handleAddOutlet(outlet.storeCode);
+                    }}
+                    outlet={{
+                      kodeToko: outlet.storeCode,
+                      namaToko: outlet.name,
+                      alamat: outlet.address,
+                      kecamatan: outlet.subdistrict,
+                      kabupaten: outlet.regency,
+                      district: outlet.district,
+                      territory: outlet.territory,
+                      territoryGroup:
+                        displayMapping?.territoryGroup ?? outlet.territoryGroup,
+                      teamName: displayMapping?.teamName ?? null,
+                      picName: displayMapping?.picName ?? null,
+                      supervisorName: outlet.supervisorName,
+                      noTelpSpv: outlet.supervisorPhone,
+                      typeOutlet: outlet.typeOutlet,
+                      visualPposm: outlet.visualPposm,
+                      brand: outlet.brand,
+                      ukuran: outlet.size,
+                      lat: outlet.latitude,
+                      lon: outlet.longitude,
+                    }}
+                  />
+                );
+              })()
             ))
           )}
         </div>
