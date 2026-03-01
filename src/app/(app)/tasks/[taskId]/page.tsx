@@ -52,6 +52,29 @@ export default async function TaskDetailPage({
           <p className="text-sm leading-6 text-slate-600">{task.outlet.address}</p>
         </div>
 
+        <div className="mb-5 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Status
+            </p>
+            <p className="mt-1 font-semibold text-slate-900">
+              {canonicalTaskStatusLabel(canonicalStatus)}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Territory
+            </p>
+            <p className="mt-1 font-semibold text-slate-900">{task.outlet.territory ?? "-"}</p>
+          </div>
+          <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Check-in Radius
+            </p>
+            <p className="mt-1 font-semibold text-slate-900">100 m</p>
+          </div>
+        </div>
+
         <TaskMap
           outletLatitude={task.outlet.latitude}
           outletLongitude={task.outlet.longitude}

@@ -180,13 +180,30 @@ export function TaskActions({
       <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
         Task Actions
       </p>
-      <p className="mt-3 text-sm text-slate-600">
-        {distanceM == null ? "Waiting for location..." : `${Math.round(distanceM)} m from outlet`}
-      </p>
-      <p className="text-xs text-slate-500">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            Current Distance
+          </p>
+          <p className="mt-1 font-semibold text-slate-900">
+            {distanceM == null ? "Waiting for location..." : `${Math.round(distanceM)} m`}
+          </p>
+        </div>
+        <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            Current Position
+          </p>
+          <p className="mt-1 font-semibold text-slate-900">
+            {currentPosition
+              ? `${currentPosition.lat.toFixed(5)}, ${currentPosition.lon.toFixed(5)}`
+              : "Waiting for GPS..."}
+          </p>
+        </div>
+      </div>
+      <p className="mt-4 text-xs text-slate-500">
         Check-in and check-out are only allowed within 100 meters.
       </p>
-      <div className="mt-5 flex flex-col gap-3">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <button
           className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-300"
           disabled={!canCheckIn || isPending}
@@ -203,6 +220,13 @@ export function TaskActions({
         >
           {isPending && canCheckOut ? "Checking out..." : "Check Out"}
         </button>
+      </div>
+      <div className="mt-4 rounded-2xl bg-slate-100 px-4 py-3 text-xs text-slate-600">
+        {canCheckIn
+          ? "Status masih pending. Dekati outlet lalu tekan Check In."
+          : canCheckOut
+            ? "Kamu sudah check-in. Selesaikan kunjungan lalu tekan Check Out."
+            : "Task ini sudah selesai atau tidak bisa diubah lagi."}
       </div>
       {message ? (
         <p
