@@ -98,9 +98,9 @@ export default async function AdminAssignPage() {
           Manage user-to-outlet assignments
         </h2>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          Pilih user field force, telusuri outlet dengan detail lengkap, lalu
-          assign berdasarkan urutan alamat dan koordinat agar rapi untuk kebutuhan
-          operasional dan map.
+          Pilih user field force, lalu simpan daftar kode toko untuk assignment.
+          Katalog master outlet sekarang ada di menu terpisah supaya proses assign
+          tidak terlalu padat di satu layar.
         </p>
       </section>
       <AssignmentManager outlets={outlets} users={users} />
