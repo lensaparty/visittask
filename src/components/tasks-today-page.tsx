@@ -1,74 +1,38 @@
 import { UserRole } from "@prisma/client";
 import Link from "next/link";
 import { DutyToggle } from "@/components/duty-toggle";
-import { distanceInMeters } from "@/lib/geo";
+import { FieldRouteMap } from "@/components/field-route-map";
 import { prisma } from "@/lib/prisma";
-import {
-  scheduleDayLabel,
-  shouldGenerateTaskForDate,
-  startOfUtcDay,
-} from "@/lib/schedule";
+import { startOfUtcDay } from "@/lib/schedule";
 import { requireUser } from "@/lib/session";
 import {
-  type CanonicalTaskStatus,
   canonicalTaskStatusClasses,
   canonicalTaskStatusLabel,
   toCanonicalTaskStatus,
 } from "@/lib/task-status";
 
-type TaskFilter = CanonicalTaskStatus | "ALL";
-type TaskSort = "name" | "territory" | "status" | "nearest";
-
-function isTaskFilter(value: string): value is TaskFilter {
-  return value === "ALL" || value === "PENDING" || value === "IN_PROGRESS" || value === "DONE" || value === "MISSED";
-}
-
-function isTaskSort(value: string): value is TaskSort {
-  return (
-    value === "name" ||
-    value === "territory" ||
-    value === "status" ||
-    value === "nearest"
-  );
-}
-
-function buildTasksTodayHref(filter: TaskFilter, sort: TaskSort) {
-  const searchParams = new URLSearchParams();
-
-  if (filter !== "ALL") {
-    searchParams.set("status", filter);
-  }
-
-  if (sort !== "name") {
-    searchParams.set("sort", sort);
-  }
-
-  const query = searchParams.toString();
-
-  return query ? `/tasks/today?${query}` : "/tasks/today";
-}
-
-export async function TasksTodayPageContent({
-  searchParams,
-}: {
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
-}) {
+export async function TasksTodayPageContent() {
   const user = await requireUser(UserRole.FIELD_FORCE);
-  const now = new Date();
   const today = startOfUtcDay(new Date());
-  const resolvedSearchParams = searchParams ? await searchParams : {};
-  const requestedFilter = Array.isArray(resolvedSearchParams.status)
-    ? resolvedSearchParams.status[0]
-    : resolvedSearchParams.status;
-  const requestedSort = Array.isArray(resolvedSearchParams.sort)
-    ? resolvedSearchParams.sort[0]
-    : resolvedSearchParams.sort;
-  const activeFilter: TaskFilter =
-    requestedFilter && isTaskFilter(requestedFilter) ? requestedFilter : "ALL";
-  const activeSort: TaskSort =
-    requestedSort && isTaskSort(requestedSort) ? requestedSort : "name";
 
-  const [taskRows, activeSession, activeAssignments] = await Promise.all([
+  const [assignmentRows, taskRows, activeSession] = await Promise.all([
+    prisma.assignment.findMany({
+      where: {
+        userId: user.id,
+        active: true,
+      },
+      include: {
+        outlet: {
+          include: {
+            supervisor: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    }),
     prisma.task.findMany({
       where: {
         userId: user.id,
@@ -87,305 +51,219 @@ export async function TasksTodayPageContent({
         startedAt: "desc",
       },
     }),
-    prisma.assignment.findMany({
-      where: {
-        userId: user.id,
-        active: true,
-      },
-      include: {
-        outlet: {
-          select: {
-            oddScheduleDay: true,
-            evenScheduleDay: true,
-          },
-        },
-      },
-    }),
   ]);
 
-  const allTasks = [...taskRows];
-  const activeAssignmentCount = activeAssignments.length;
-  const scheduledTodayCount = activeAssignments.filter((assignment) =>
-    shouldGenerateTaskForDate(assignment.outlet, now),
-  ).length;
-  const todayLabel = new Intl.DateTimeFormat("id-ID", {
-    dateStyle: "full",
-  }).format(now);
-  const hasLastKnownLocation = user.lastKnownLat != null && user.lastKnownLon != null;
-  const tasksWithMeta = allTasks.map((task) => ({
-    task,
-    canonicalStatus: toCanonicalTaskStatus(task.status),
-    distanceM: hasLastKnownLocation
-      ? distanceInMeters(
-          user.lastKnownLat as number,
-          user.lastKnownLon as number,
-          task.outlet.latitude,
-          task.outlet.longitude,
-        )
-      : null,
-  }));
-  const taskSummary = {
-    ALL: tasksWithMeta.length,
-    PENDING: tasksWithMeta.filter((task) => task.canonicalStatus === "PENDING").length,
-    IN_PROGRESS: tasksWithMeta.filter((task) => task.canonicalStatus === "IN_PROGRESS").length,
-    DONE: tasksWithMeta.filter((task) => task.canonicalStatus === "DONE").length,
-    MISSED: tasksWithMeta.filter((task) => task.canonicalStatus === "MISSED").length,
-  } as const;
+  const todayTaskByOutletId = new Map(taskRows.map((task) => [task.outletId, task]));
+  const routeAssignments = [...assignmentRows].sort((left, right) => {
+    const leftKey = [
+      left.outlet.territory ?? "",
+      left.outlet.regency ?? "",
+      left.outlet.subdistrict ?? "",
+      left.outlet.address,
+      left.outlet.storeCode,
+    ].join("|");
+    const rightKey = [
+      right.outlet.territory ?? "",
+      right.outlet.regency ?? "",
+      right.outlet.subdistrict ?? "",
+      right.outlet.address,
+      right.outlet.storeCode,
+    ].join("|");
 
-  const filteredTasks =
-    activeFilter === "ALL"
-      ? tasksWithMeta
-      : tasksWithMeta.filter((task) => task.canonicalStatus === activeFilter);
+    return leftKey.localeCompare(rightKey);
+  }).map((assignment, index) => {
+    const todayTask = todayTaskByOutletId.get(assignment.outletId) ?? null;
 
-  const tasks = [...filteredTasks].sort((left, right) => {
-    if (activeSort === "nearest") {
-      if (left.distanceM != null && right.distanceM != null) {
-        return left.distanceM - right.distanceM;
-      }
-
-      if (left.distanceM != null) {
-        return -1;
-      }
-
-      if (right.distanceM != null) {
-        return 1;
-      }
-    }
-
-    if (activeSort === "territory") {
-      const leftKey = [
-        left.task.outlet.territory ?? "",
-        left.task.outlet.name,
-        left.task.outlet.address,
-      ].join("|");
-      const rightKey = [
-        right.task.outlet.territory ?? "",
-        right.task.outlet.name,
-        right.task.outlet.address,
-      ].join("|");
-
-      return leftKey.localeCompare(rightKey);
-    }
-
-    if (activeSort === "status") {
-      const leftKey = [
-        left.canonicalStatus,
-        left.task.outlet.name,
-        left.task.outlet.address,
-      ].join("|");
-      const rightKey = [
-        right.canonicalStatus,
-        right.task.outlet.name,
-        right.task.outlet.address,
-      ].join("|");
-
-      return leftKey.localeCompare(rightKey);
-    }
-
-    return left.task.outlet.name.localeCompare(right.task.outlet.name);
+    return {
+      order: index + 1,
+      outlet: assignment.outlet,
+      todayTask,
+      canonicalStatus: todayTask ? toCanonicalTaskStatus(todayTask.status) : null,
+    };
   });
 
+  const routeStops = routeAssignments.map((assignment) => ({
+    order: assignment.order,
+    kodeToko: assignment.outlet.storeCode,
+    namaToko: assignment.outlet.name,
+    alamat: assignment.outlet.address,
+    lat: assignment.outlet.latitude,
+    lon: assignment.outlet.longitude,
+  }));
+  const readyTaskCount = routeAssignments.filter((assignment) => assignment.todayTask).length;
+
   return (
-    <main className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
-      <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
-        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
-              Tasks Today
-            </p>
-            <h2 className="text-2xl font-semibold text-slate-900">
-              {taskSummary.ALL} scheduled outlet visit{taskSummary.ALL === 1 ? "" : "s"}
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Quick, mobile-friendly access to today&apos;s assigned outlet visits.
-            </p>
+    <main className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <section className="space-y-6">
+        <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
+                Assigned Route
+              </p>
+              <h2 className="text-2xl font-semibold text-slate-900">
+                {routeAssignments.length} outlet assigned by supervisor
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Halaman ini fokus ke rute outlet yang sudah di-assign. Ikuti urutan kunjungan,
+                lihat peta, dan buka task detail kalau task hari ini sudah tergenerate.
+              </p>
+            </div>
+            <DutyToggle initialActiveSessionId={activeSession?.id ?? null} />
           </div>
-          <DutyToggle initialActiveSessionId={activeSession?.id ?? null} />
-        </div>
 
-        <div className="mb-5 grid gap-3 grid-cols-2 sm:grid-cols-4">
-          <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Pending
-            </p>
-            <p className="mt-1 text-lg font-semibold text-slate-900">{taskSummary.PENDING}</p>
-          </div>
-          <div className="rounded-2xl bg-sky-50 px-4 py-3 text-sm text-sky-700">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-500">
-              In Progress
-            </p>
-            <p className="mt-1 text-lg font-semibold text-sky-800">{taskSummary.IN_PROGRESS}</p>
-          </div>
-          <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-500">
-              Done
-            </p>
-            <p className="mt-1 text-lg font-semibold text-emerald-800">{taskSummary.DONE}</p>
-          </div>
-          <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-rose-500">
-              Missed
-            </p>
-            <p className="mt-1 text-lg font-semibold text-rose-800">{taskSummary.MISSED}</p>
-          </div>
-        </div>
-
-        <div className="mb-5 flex flex-col gap-4 rounded-3xl bg-slate-100 p-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Filter Status
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {(["ALL", "PENDING", "IN_PROGRESS", "DONE", "MISSED"] as TaskFilter[]).map(
-                (filterOption) => (
-                  <Link
-                    className={`inline-flex shrink-0 rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition ${
-                      activeFilter === filterOption
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                    }`}
-                    href={buildTasksTodayHref(filterOption, activeSort)}
-                    key={filterOption}
-                  >
-                    <span
-                      style={{ color: activeFilter === filterOption ? "#ffffff" : "#475569" }}
-                    >
-                      {filterOption === "ALL"
-                        ? `All (${taskSummary.ALL})`
-                        : `${canonicalTaskStatusLabel(filterOption)} (${taskSummary[filterOption]})`}
-                    </span>
-                  </Link>
-                ),
-              )}
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Route Assigned
+              </p>
+              <p className="mt-1 text-lg font-semibold text-slate-900">
+                {routeAssignments.length}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-cyan-50 px-4 py-3 text-sm text-cyan-700">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-500">
+                Task Ready Today
+              </p>
+              <p className="mt-1 text-lg font-semibold text-cyan-900">{readyTaskCount}</p>
+            </div>
+            <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Need Generate
+              </p>
+              <p className="mt-1 text-lg font-semibold text-slate-900">
+                {Math.max(routeAssignments.length - readyTaskCount, 0)}
+              </p>
             </div>
           </div>
 
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Sort
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {([
-                ["name", "Nama Outlet"],
-                ["territory", "Territory"],
-                ["status", "Status"],
-                ["nearest", hasLastKnownLocation ? "Terdekat" : "Terdekat (Need Ping)"],
-              ] as const).map(([sortOption, label]) => (
-                <Link
-                  className={`inline-flex shrink-0 rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] transition ${
-                    activeSort === sortOption
-                      ? "border-cyan-200 bg-cyan-50 text-cyan-800"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                  }`}
-                  href={buildTasksTodayHref(activeFilter, sortOption)}
-                  key={sortOption}
-                >
-                  <span
-                    style={{ color: activeSort === sortOption ? "#155e75" : "#475569" }}
-                  >
-                    {label}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          {tasks.length === 0 ? (
-            <div className="space-y-3">
-              <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
-                {taskSummary.ALL === 0
-                  ? "No tasks generated for today yet."
-                  : "No tasks match the current filter."}
-              </div>
-              {taskSummary.ALL === 0 ? (
-                <div className="rounded-2xl bg-slate-100 px-4 py-4 text-sm text-slate-600">
-                  {activeAssignmentCount === 0 ? (
-                    <p>Belum ada outlet aktif yang di-assign ke user ini.</p>
-                  ) : scheduledTodayCount > 0 ? (
-                    <p>
-                      Ada {activeAssignmentCount} outlet aktif, dan {scheduledTodayCount} outlet
-                      cocok untuk {todayLabel}. Task belum muncul karena supervisor masih perlu
-                      menjalankan generate task.
-                    </p>
-                  ) : (
-                    <p>
-                      Ada {activeAssignmentCount} outlet aktif, tapi tidak ada yang cocok dengan
-                      jadwal hari ini ({todayLabel}) berdasarkan aturan ganjil/genap.
-                    </p>
-                  )}
-                </div>
-              ) : null}
+          {routeAssignments.length === 0 ? (
+            <div className="mt-5 rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-sm text-slate-500">
+              Belum ada outlet aktif yang di-assign ke user ini.
             </div>
           ) : (
-            tasks.map((task) => {
-              const canonicalStatus = task.canonicalStatus;
+            <div className="mt-5 space-y-3">
+              <FieldRouteMap stops={routeStops} />
+              <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+                {readyTaskCount > 0 ? (
+                  <p>
+                    {readyTaskCount} outlet sudah punya task hari ini. Outlet lain tetap tampil
+                    sebagai rute, tapi action check-in/out baru aktif setelah task digenerate.
+                  </p>
+                ) : (
+                  <p>
+                    Rute outlet sudah siap dilihat. Kalau tombol check-in/out belum ada, minta
+                    supervisor klik <span className="font-semibold">Generate Hari Ini</span>.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
 
-              return (
-                <Link
-                  className="block rounded-2xl border border-slate-200 px-4 py-4 transition hover:border-cyan-300 hover:bg-cyan-50/60"
-                  href={`/tasks/${task.task.id}`}
-                  key={task.task.id}
+        <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
+          <div className="mb-5">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
+              Route Detail
+            </p>
+            <h2 className="text-2xl font-semibold text-slate-900">
+              Outlet information
+            </h2>
+          </div>
+
+          <div className="space-y-4">
+            {routeAssignments.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
+                Belum ada detail route untuk ditampilkan.
+              </p>
+            ) : (
+              routeAssignments.map((assignment) => (
+                <article
+                  className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm shadow-slate-900/5"
+                  key={assignment.outlet.id}
                 >
-                  <div className="flex flex-col gap-3">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="space-y-1">
-                        <p className="text-lg font-semibold text-slate-900">
-                          {task.task.outlet.name}
-                        </p>
-                        <p className="text-sm text-slate-600">
-                          {task.task.outlet.storeCode} • {task.task.outlet.address}
-                        </p>
-                      </div>
-                      <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${canonicalTaskStatusClasses(canonicalStatus)}`}
-                      >
-                        {canonicalTaskStatusLabel(canonicalStatus)}
-                      </span>
-                    </div>
-
-                    <div className="grid gap-2 sm:grid-cols-3">
-                      <div className="rounded-2xl bg-slate-100 px-3 py-2 text-xs text-slate-600">
-                        <p className="font-semibold uppercase tracking-[0.14em] text-slate-500">
-                          Territory
-                        </p>
-                        <p className="mt-1 text-sm font-medium text-slate-900">
-                          {task.task.outlet.territory ?? "-"}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl bg-slate-100 px-3 py-2 text-xs text-slate-600">
-                        <p className="font-semibold uppercase tracking-[0.14em] text-slate-500">
-                          Schedule
-                        </p>
-                        <p className="mt-1 text-sm font-medium text-slate-900">
-                          {scheduleDayLabel(task.task.scheduleDay)}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl bg-slate-100 px-3 py-2 text-xs text-slate-600">
-                        <p className="font-semibold uppercase tracking-[0.14em] text-slate-500">
-                          {hasLastKnownLocation ? "Distance" : "Area"}
-                        </p>
-                        <p className="mt-1 text-sm font-medium text-slate-900">
-                          {hasLastKnownLocation && task.distanceM != null
-                            ? `${Math.round(task.distanceM)} m`
-                            : (task.task.outlet.subdistrict ?? "-")}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                      <span>Tap to open map and actions</span>
-                      <p className="text-lg font-semibold text-slate-900">
-                        Open
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">
+                        Stop {assignment.order}
+                      </p>
+                      <h3 className="mt-1 text-base font-semibold text-slate-900">
+                        {assignment.outlet.name}
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-600">
+                        {assignment.outlet.storeCode} • {assignment.outlet.address}
                       </p>
                     </div>
+                    {assignment.todayTask ? (
+                      <Link
+                        className="inline-flex rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800 transition hover:border-cyan-300"
+                        href={`/tasks/${assignment.todayTask.id}`}
+                      >
+                        Open Task
+                      </Link>
+                    ) : (
+                      <span className="inline-flex rounded-2xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                        Route Only
+                      </span>
+                    )}
                   </div>
-                </Link>
-              );
-            })
-          )}
-        </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl bg-slate-50 px-3 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Store
+                      </p>
+                      <p className="mt-1 text-slate-700">{assignment.outlet.storeCode}</p>
+                      <p className="mt-1 text-slate-600">
+                        {assignment.outlet.territory ?? "-"} •{" "}
+                        {assignment.outlet.territoryGroup ?? "-"}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-3 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Supervisor
+                      </p>
+                      <p className="mt-1 text-slate-700">
+                        {assignment.outlet.supervisor?.name ?? "-"}
+                      </p>
+                      <p className="mt-1 text-slate-600">
+                        Telp: {assignment.outlet.supervisorPhone ?? "-"}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-3 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Outlet Detail
+                      </p>
+                      <p className="mt-1 text-slate-700">
+                        Type: {assignment.outlet.typeOutlet ?? "-"}
+                      </p>
+                      <p className="mt-1 text-slate-600">
+                        {assignment.outlet.visualPposm ?? "-"} • {assignment.outlet.brand ?? "-"} •{" "}
+                        {assignment.outlet.size ?? "-"}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-slate-50 px-3 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Today Status
+                      </p>
+                      {assignment.canonicalStatus ? (
+                        <span
+                          className={`mt-1 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${canonicalTaskStatusClasses(assignment.canonicalStatus)}`}
+                        >
+                          {canonicalTaskStatusLabel(assignment.canonicalStatus)}
+                        </span>
+                      ) : (
+                        <p className="mt-1 text-slate-600">
+                          Task belum tergenerate untuk hari ini.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
       </section>
 
       <aside className="space-y-6">
@@ -413,18 +291,18 @@ export async function TasksTodayPageContent({
             </div>
           ) : (
             <p className="mt-3 text-sm text-slate-500">
-              No duty tracking ping recorded yet.
+              Belum ada ping lokasi. Start Duty untuk mengirim lokasi.
             </p>
           )}
         </section>
 
         <section className="rounded-3xl border border-white/60 bg-gradient-to-br from-cyan-500 to-blue-600 p-5 text-white shadow-lg shadow-cyan-900/20 sm:p-6">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-100">
-            Check-in Rule
+            Route Guidance
           </p>
           <p className="mt-3 text-sm leading-6 text-cyan-50">
-            Check-in only succeeds when you are within 100 meters of the outlet
-            coordinates. Open a task card to see the map and action buttons.
+            Marker biru menunjukkan posisi kamu, marker hijau menunjukkan outlet route. Urutan
+            route di peta mengikuti daftar outlet yang sudah di-assign supervisor.
           </p>
         </section>
       </aside>
