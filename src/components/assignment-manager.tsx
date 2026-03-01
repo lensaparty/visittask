@@ -2,6 +2,10 @@
 
 import { FormEvent, useDeferredValue, useEffect, useState, useTransition } from "react";
 import { AssignmentPreviewMap } from "@/components/assignment-preview-map";
+import {
+  getTerritoryPicMapping,
+  TERRITORY_PIC_MAPPINGS,
+} from "@/lib/territory-pic-map";
 
 type AssignableUser = {
   id: string;
@@ -100,6 +104,8 @@ function escapeCsvField(value: string | number | null | undefined) {
 }
 
 function buildOutletSearchText(outlet: OutletView) {
+  const territoryPicMapping = getTerritoryPicMapping(outlet.territoryGroup);
+
   return [
     outlet.storeCode,
     outlet.name,
@@ -115,6 +121,8 @@ function buildOutletSearchText(outlet: OutletView) {
     outlet.visualPposm ?? "",
     outlet.brand ?? "",
     outlet.size ?? "",
+    territoryPicMapping?.teamName ?? "",
+    territoryPicMapping?.picName ?? "",
     formatCoordinate(outlet.latitude),
     formatCoordinate(outlet.longitude),
   ]
@@ -140,6 +148,8 @@ function OutletDetailCard({
     district: string | null;
     territory: string | null;
     territoryGroup: string | null;
+    teamName?: string | null;
+    picName?: string | null;
     supervisorName: string | null;
     noTelpSpv: string | null;
     typeOutlet: string | null;
@@ -197,6 +207,13 @@ function OutletDetailCard({
           <p className="mt-1 text-slate-700">{outlet.territory ?? "-"}</p>
           <p className="mt-1 text-slate-600">Group: {outlet.territoryGroup ?? "-"}</p>
         </div>
+        <div className="rounded-2xl bg-cyan-50 px-3 py-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">
+            PIC Mapping
+          </p>
+          <p className="mt-1 text-slate-700">{outlet.teamName ?? "-"}</p>
+          <p className="mt-1 text-slate-600">{outlet.picName ?? "-"}</p>
+        </div>
         <div className="rounded-2xl bg-slate-50 px-3 py-3">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
             Supervisor
@@ -240,6 +257,9 @@ export function AssignmentManager({
   const [selectedUserId, setSelectedUserId] = useState(users[0]?.id ?? "");
   const [textareaValue, setTextareaValue] = useState("");
   const [outletQuery, setOutletQuery] = useState("");
+  const [territoryGroupFilter, setTerritoryGroupFilter] = useState("");
+  const [teamFilter, setTeamFilter] = useState("");
+  const [picFilter, setPicFilter] = useState("");
   const [removedQuery, setRemovedQuery] = useState("");
   const [removedCodes, setRemovedCodes] = useState<string[]>([]);
   const [assignments, setAssignments] = useState<AssignmentView[]>([]);
@@ -266,9 +286,30 @@ export function AssignmentManager({
     .filter((outlet): outlet is OutletView => Boolean(outlet));
 
   const normalizedQuery = deferredOutletQuery.trim().toLowerCase();
-  const searchedOutlets = normalizedQuery
-    ? outlets.filter((outlet) => buildOutletSearchText(outlet).includes(normalizedQuery))
-    : outlets;
+  const searchedOutlets = outlets.filter((outlet) => {
+    const territoryPicMapping = getTerritoryPicMapping(outlet.territoryGroup);
+
+    if (
+      territoryGroupFilter &&
+      (outlet.territoryGroup ?? "").trim().toUpperCase() !== territoryGroupFilter
+    ) {
+      return false;
+    }
+
+    if (teamFilter && territoryPicMapping?.teamName !== teamFilter) {
+      return false;
+    }
+
+    if (picFilter && territoryPicMapping?.picName !== picFilter) {
+      return false;
+    }
+
+    if (!normalizedQuery) {
+      return true;
+    }
+
+    return buildOutletSearchText(outlet).includes(normalizedQuery);
+  });
   const visibleOutlets = normalizedQuery ? searchedOutlets.slice(0, 80) : searchedOutlets.slice(0, 36);
   const normalizedRemovedQuery = removedQuery.trim().toLowerCase();
   const visibleRemovedCodes = normalizedRemovedQuery
@@ -291,6 +332,9 @@ export function AssignmentManager({
     (assignment) => !assignment.active && selectedCodeSet.has(assignment.kodeToko),
   ).length;
   const draftActiveCount = selectedCodes.length;
+  const territoryGroupOptions = TERRITORY_PIC_MAPPINGS.map((mapping) => mapping.territoryGroup);
+  const teamOptions = [...new Set(TERRITORY_PIC_MAPPINGS.map((mapping) => mapping.teamName))];
+  const picOptions = [...new Set(TERRITORY_PIC_MAPPINGS.map((mapping) => mapping.picName))];
 
   function getDraftStateLabel(assignment: AssignmentView) {
     if (assignment.active) {
@@ -502,6 +546,8 @@ export function AssignmentManager({
       "Email",
       "Assignment Status",
       "Draft State",
+      "Team",
+      "PIC",
       "Kode Toko",
       "Nama Toko",
       "Alamat",
@@ -526,6 +572,8 @@ export function AssignmentManager({
         selectedUser.email,
         assignment.active ? "ACTIVE" : "INACTIVE",
         getDraftStateLabel(assignment),
+        getTerritoryPicMapping(assignment.territoryGroup)?.teamName ?? "",
+        getTerritoryPicMapping(assignment.territoryGroup)?.picName ?? "",
         assignment.kodeToko,
         assignment.namaToko,
         assignment.alamat,
@@ -574,6 +622,8 @@ export function AssignmentManager({
       Email: selectedUser.email,
       "Assignment Status": assignment.active ? "ACTIVE" : "INACTIVE",
       "Draft State": getDraftStateLabel(assignment),
+      Team: getTerritoryPicMapping(assignment.territoryGroup)?.teamName ?? "",
+      PIC: getTerritoryPicMapping(assignment.territoryGroup)?.picName ?? "",
       "Kode Toko": assignment.kodeToko,
       "Nama Toko": assignment.namaToko,
       Alamat: assignment.alamat,
@@ -662,6 +712,9 @@ export function AssignmentManager({
                   setAssignments([]);
                   setLoadError(null);
                   setTextareaValue("");
+                  setTerritoryGroupFilter("");
+                  setTeamFilter("");
+                  setPicFilter("");
                   setRemovedCodes([]);
                   setRemovedQuery("");
                   setShowInactiveHistory(false);
@@ -714,6 +767,56 @@ export function AssignmentManager({
                 value={outletQuery}
               />
             </label>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <label className="block space-y-2 text-sm font-medium text-slate-700">
+                <span>Filter Territory Group</span>
+                <select
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+                  onChange={(event) => setTerritoryGroupFilter(event.target.value)}
+                  value={territoryGroupFilter}
+                >
+                  <option value="">Semua Territory Group</option>
+                  {territoryGroupOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block space-y-2 text-sm font-medium text-slate-700">
+                <span>Filter Team</span>
+                <select
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+                  onChange={(event) => setTeamFilter(event.target.value)}
+                  value={teamFilter}
+                >
+                  <option value="">Semua Team</option>
+                  {teamOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block space-y-2 text-sm font-medium text-slate-700">
+                <span>Filter PIC</span>
+                <select
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+                  onChange={(event) => setPicFilter(event.target.value)}
+                  value={picFilter}
+                >
+                  <option value="">Semua PIC</option>
+                  {picOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
             <label className="block space-y-2 text-sm font-medium text-slate-700">
               <span>Kode Toko Terpilih</span>
@@ -839,6 +942,8 @@ export function AssignmentManager({
                       district: outlet.district,
                       territory: outlet.territory,
                       territoryGroup: outlet.territoryGroup,
+                      teamName: getTerritoryPicMapping(outlet.territoryGroup)?.teamName ?? null,
+                      picName: getTerritoryPicMapping(outlet.territoryGroup)?.picName ?? null,
                       supervisorName: outlet.supervisorName,
                       noTelpSpv: outlet.supervisorPhone,
                       typeOutlet: outlet.typeOutlet,
@@ -927,6 +1032,8 @@ export function AssignmentManager({
                       district: outlet.district,
                       territory: outlet.territory,
                       territoryGroup: outlet.territoryGroup,
+                      teamName: getTerritoryPicMapping(outlet.territoryGroup)?.teamName ?? null,
+                      picName: getTerritoryPicMapping(outlet.territoryGroup)?.picName ?? null,
                       supervisorName: outlet.supervisorName,
                       noTelpSpv: outlet.supervisorPhone,
                       typeOutlet: outlet.typeOutlet,
@@ -1105,7 +1212,13 @@ export function AssignmentManager({
 
                         handleRestoreOutlet(assignment.kodeToko);
                       }}
-                      outlet={assignment}
+                      outlet={{
+                        ...assignment,
+                        teamName:
+                          getTerritoryPicMapping(assignment.territoryGroup)?.teamName ?? null,
+                        picName:
+                          getTerritoryPicMapping(assignment.territoryGroup)?.picName ?? null,
+                      }}
                     />
                     {!assignment.active ? (
                       <div className="flex justify-end">
@@ -1189,6 +1302,8 @@ export function AssignmentManager({
                   district: outlet.district,
                   territory: outlet.territory,
                   territoryGroup: outlet.territoryGroup,
+                  teamName: getTerritoryPicMapping(outlet.territoryGroup)?.teamName ?? null,
+                  picName: getTerritoryPicMapping(outlet.territoryGroup)?.picName ?? null,
                   supervisorName: outlet.supervisorName,
                   noTelpSpv: outlet.supervisorPhone,
                   typeOutlet: outlet.typeOutlet,
