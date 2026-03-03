@@ -785,7 +785,7 @@ export function AssignmentManager({
               </p>
               <Link
                 className="mt-3 inline-flex rounded-2xl border border-cyan-200 bg-white px-3 py-2 text-sm font-semibold text-cyan-800 transition hover:border-cyan-300"
-                href="/admin/outlets"
+                href="/attendance/field-force/outlets"
               >
                 Buka Master Outlet
               </Link>

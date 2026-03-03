@@ -75,14 +75,14 @@ export default async function TaskDetailPage({
           <div className="flex flex-wrap gap-2">
             <Link
               className="inline-flex rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 transition hover:border-cyan-300 hover:text-cyan-700"
-              href="/route/today"
+              href="/attendance/field-force/route/today"
             >
               Back to Route
             </Link>
             {nextTask ? (
               <Link
                 className="inline-flex rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-800 transition hover:border-cyan-300"
-                href={`/tasks/${nextTask.id}`}
+                href={`/attendance/field-force/tasks/${nextTask.id}`}
               >
                 Next Task
               </Link>

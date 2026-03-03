@@ -1,13 +1,9 @@
 import { UserRole } from "@prisma/client";
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 
-export default async function HomePage() {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    redirect("/login");
-  }
+export default async function AttendanceFieldForceIndexPage() {
+  const user = await requireUser();
 
   redirect(
     user.role === UserRole.SUPERVISOR

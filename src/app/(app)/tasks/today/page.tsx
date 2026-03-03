@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default async function TasksTodayPage() {
-  redirect("/route/today");
+  redirect("/attendance/field-force/route/today");
 }

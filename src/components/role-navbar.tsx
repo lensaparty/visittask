@@ -24,15 +24,14 @@ export function RoleNavbar({
 
   const items: NavItem[] =
     role === UserRole.FIELD_FORCE
-      ? [{ href: "/route/today", label: "Route Today" }]
+      ? [{ href: "/attendance/field-force/route/today", label: "Route Today" }]
       : [
-          { href: "/supervisor", label: "Supervisor" },
-          { href: "/admin/import", label: "Import" },
-          { href: "/admin/outlets", label: "Outlets" },
-          { href: "/admin/tsuk", label: "TSUK" },
-          { href: "/admin/attendance-prototype", label: "Absen App" },
-          { href: "/admin/assign", label: "Assign" },
-          { href: "/admin/users", label: "Users" },
+          { href: "/attendance/field-force/supervisor", label: "Supervisor" },
+          { href: "/attendance/field-force/import", label: "Import" },
+          { href: "/attendance/field-force/outlets", label: "Outlets" },
+          { href: "/attendance/field-force/tsuk", label: "TSUK" },
+          { href: "/attendance/field-force/assign", label: "Assign" },
+          { href: "/attendance/field-force/users", label: "Users" },
         ];
   const mobileGridClass = items.length === 1 ? "grid-cols-1" : "grid-cols-2";
 
@@ -44,9 +43,10 @@ export function RoleNavbar({
       {items.map((item) => {
         const active =
           pathname === item.href ||
-          (item.href === "/route/today" &&
+          (item.href === "/attendance/field-force/route/today" &&
             (pathname.startsWith("/route") || pathname.startsWith("/tasks"))) ||
-          (item.href !== "/supervisor" && pathname.startsWith(item.href));
+          (item.href !== "/attendance/field-force/supervisor" &&
+            pathname.startsWith(item.href));
 
         return (
           <Link

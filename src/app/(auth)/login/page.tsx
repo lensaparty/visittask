@@ -7,7 +7,11 @@ export default async function LoginPage() {
   const user = await getCurrentUser();
 
   if (user) {
-    redirect(user.role === UserRole.SUPERVISOR ? "/supervisor" : "/route/today");
+    redirect(
+      user.role === UserRole.SUPERVISOR
+        ? "/attendance/field-force/supervisor"
+        : "/attendance/field-force/route/today",
+    );
   }
 
   return (
