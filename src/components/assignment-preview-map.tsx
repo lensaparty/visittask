@@ -47,13 +47,17 @@ function PreviewMapBounds({
 
 export function AssignmentPreviewMap({
   outlets,
+  emptyText = "Belum ada outlet aktif di draft untuk dipreview di peta.",
+  helperText = "Marker hijau menunjukkan outlet yang aktif di draft assignment user terpilih.",
 }: {
   outlets: PreviewOutlet[];
+  emptyText?: string;
+  helperText?: string;
 }) {
   if (outlets.length === 0) {
     return (
       <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
-        Belum ada outlet aktif di draft untuk dipreview di peta.
+        {emptyText}
       </p>
     );
   }
@@ -90,7 +94,7 @@ export function AssignmentPreviewMap({
         </MapContainer>
       </div>
       <p className="text-sm text-slate-500">
-        Marker hijau menunjukkan outlet yang aktif di draft assignment user terpilih.
+        {helperText}
       </p>
     </div>
   );

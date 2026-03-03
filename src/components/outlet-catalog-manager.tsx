@@ -1,6 +1,7 @@
 "use client";
 
 import { ScheduleDay } from "@prisma/client";
+import { AssignmentPreviewMap } from "@/components/assignment-preview-map";
 import { useDeferredValue, useEffect, useState, useTransition } from "react";
 
 type CatalogAssignableUser = {
@@ -50,6 +51,7 @@ type OutletCatalogView = {
 };
 
 const CATALOG_PAGE_SIZE = 12;
+const MAP_PREVIEW_LIMIT = 150;
 const SCHEDULE_DAY_ORDER: Record<ScheduleDay, number> = {
   [ScheduleDay.SENIN]: 1,
   [ScheduleDay.SELASA]: 2,
@@ -335,6 +337,13 @@ export function OutletCatalogManager({
     (outlet) => !draftAssignedCodeSet.has(outlet.storeCode),
   );
   const catalogOutlets = showDraftedOutlets ? sortedOutlets : availableOutlets;
+  const previewOutlets = catalogOutlets.slice(0, MAP_PREVIEW_LIMIT).map((outlet) => ({
+    kodeToko: outlet.storeCode,
+    namaToko: outlet.name,
+    alamat: outlet.address,
+    lat: outlet.latitude,
+    lon: outlet.longitude,
+  }));
   const totalCatalogPages = Math.max(1, Math.ceil(catalogOutlets.length / CATALOG_PAGE_SIZE));
   const safeCatalogPage = Math.min(catalogPage, totalCatalogPages);
   const visibleOutlets = catalogOutlets.slice(
@@ -836,6 +845,36 @@ export function OutletCatalogManager({
                   : "Outlet yang sudah di-add disembunyikan dari daftar pilihan."}
             </p>
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
+              Peta Outlet
+            </p>
+            <h3 className="mt-2 text-xl font-semibold text-slate-900">
+              Sebaran hasil filter di peta
+            </h3>
+          </div>
+          <p className="text-sm text-slate-500">
+            {catalogOutlets.length > MAP_PREVIEW_LIMIT
+              ? `Menampilkan ${MAP_PREVIEW_LIMIT} marker pertama dari ${catalogOutlets.length} outlet.`
+              : `${catalogOutlets.length} outlet tampil di peta.`}
+          </p>
+        </div>
+
+        <div className="mt-4">
+          <AssignmentPreviewMap
+            emptyText="Belum ada outlet yang cocok untuk dipreview di peta."
+            helperText={
+              catalogOutlets.length > MAP_PREVIEW_LIMIT
+                ? "Marker hijau menunjukkan hasil filter teratas di katalog. Gunakan filter agar preview peta lebih fokus."
+                : "Marker hijau menunjukkan outlet hasil filter yang sedang tampil di katalog."
+            }
+            outlets={previewOutlets}
+          />
         </div>
       </section>
 
