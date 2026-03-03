@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import { FieldRouteMap } from "@/components/field-route-map";
 import { haversineDistanceMeters } from "@/lib/geo";
 
@@ -40,12 +41,6 @@ type GroupSizeSummaryRow = {
   group: string;
   sizes: Record<string, number>;
   total: number;
-};
-
-type BrandSummaryRow = {
-  brand: string;
-  outletCount: number;
-  totalSunscreen: number;
 };
 
 function normalizeRouteMessage(message: string) {
@@ -136,9 +131,15 @@ export function FieldRoutePlanner({
 }: {
   assignments: RouteAssignment[];
 }) {
+  const router = useRouter();
   const [userPosition, setUserPosition] = useState<UserPosition | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [hiddenBrands, setHiddenBrands] = useState<string[]>([]);
+  const [visualFilter, setVisualFilter] = useState("");
+  const [brandFilter, setBrandFilter] = useState("");
+  const [sizeFilter, setSizeFilter] = useState("");
+  const [suspensionError, setSuspensionError] = useState<string | null>(null);
+  const [suspensionFeedback, setSuspensionFeedback] = useState<string | null>(null);
+  const [isSuspensionPending, startSuspensionTransition] = useTransition();
   const hasGeolocation = useSyncExternalStore(
     () => () => {},
     () => "geolocation" in navigator,
@@ -178,30 +179,38 @@ export function FieldRoutePlanner({
     };
   }, [hasGeolocation, isSecureOrigin]);
 
-  const brandSummaryRows = useMemo<BrandSummaryRow[]>(() => {
-    const grouped = new Map<string, BrandSummaryRow>();
-
-    for (const assignment of assignments) {
-      const brand = normalizeLabel(assignment.brand, "(blank)");
-      const current = grouped.get(brand) ?? {
-        brand,
-        outletCount: 0,
-        totalSunscreen: 0,
-      };
-
-      current.outletCount += 1;
-      current.totalSunscreen += assignment.jumlahSunscreen ?? 0;
-      grouped.set(brand, current);
-    }
-
-    return [...grouped.values()].sort((left, right) => left.brand.localeCompare(right.brand));
-  }, [assignments]);
+  const visualOptions = useMemo(
+    () =>
+      [...new Set(assignments.map((assignment) => normalizeLabel(assignment.visualPposm, "-")))].sort(
+        (left, right) => left.localeCompare(right),
+      ),
+    [assignments],
+  );
+  const brandOptions = useMemo(
+    () =>
+      [...new Set(assignments.map((assignment) => normalizeLabel(assignment.brand, "(blank)")))].sort(
+        (left, right) => left.localeCompare(right),
+      ),
+    [assignments],
+  );
+  const sizeOptions = useMemo(
+    () =>
+      [...new Set(assignments.map((assignment) => normalizeLabel(assignment.ukuran, "-")))].sort(
+        (left, right) => left.localeCompare(right),
+      ),
+    [assignments],
+  );
   const visibleAssignments = useMemo(
     () =>
       assignments.filter(
-        (assignment) => !hiddenBrands.includes(normalizeLabel(assignment.brand, "(blank)")),
+        (assignment) =>
+          (!visualFilter ||
+            normalizeLabel(assignment.visualPposm, "-") === visualFilter) &&
+          (!brandFilter ||
+            normalizeLabel(assignment.brand, "(blank)") === brandFilter) &&
+          (!sizeFilter || normalizeLabel(assignment.ukuran, "-") === sizeFilter),
       ),
-    [assignments, hiddenBrands],
+    [assignments, brandFilter, sizeFilter, visualFilter],
   );
   const plannedRoute = useMemo(
     () => buildNearestRoute(visibleAssignments, userPosition),
@@ -278,13 +287,53 @@ export function FieldRoutePlanner({
   }));
   const firstStop = plannedRoute[0] ?? null;
   const hasUserPosition = userPosition != null;
+  const hasAssetFilterActive = Boolean(visualFilter || brandFilter || sizeFilter);
 
-  function toggleBrandVisibility(brand: string) {
-    setHiddenBrands((current) =>
-      current.includes(brand)
-        ? current.filter((currentBrand) => currentBrand !== brand)
-        : [...current, brand],
-    );
+  function handleSuspendFilteredOutlets() {
+    if (!hasAssetFilterActive || visibleAssignments.length === 0) {
+      setSuspensionError("Pilih minimal satu filter asset dan pastikan ada outlet yang cocok.");
+      setSuspensionFeedback(null);
+      return;
+    }
+
+    startSuspensionTransition(() => {
+      void (async () => {
+        try {
+          setSuspensionError(null);
+          setSuspensionFeedback(null);
+
+          const response = await fetch("/api/field-force/assignments/suspend", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              visualPposm: visualFilter || undefined,
+              brand: brandFilter || undefined,
+              ukuran: sizeFilter || undefined,
+            }),
+          });
+          const payload = (await response.json().catch(() => ({}))) as {
+            suspendedCount?: number;
+            message?: string;
+          };
+
+          if (!response.ok) {
+            setSuspensionError(payload.message ?? "Unable to suspend filtered outlets.");
+            return;
+          }
+
+          setSuspensionFeedback(
+            `${payload.suspendedCount ?? 0} outlet ditangguhkan. Supervisor bisa aktifkan lagi dari menu Assign saat asset siap.`,
+          );
+          router.refresh();
+        } catch (error) {
+          setSuspensionError(
+            error instanceof Error ? error.message : "Unable to suspend filtered outlets.",
+          );
+        }
+      })();
+    });
   }
 
   return (
@@ -386,53 +435,102 @@ export function FieldRoutePlanner({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Filter Brand
+                Tangguhkan Berdasarkan Asset
               </p>
               <p className="mt-1 text-sm text-slate-600">
-                Hide brand yang asset-nya sedang habis. Route dan daftar outlet di halaman ini
-                akan ikut hilang sementara, lalu bisa di-unhide kapan saja.
+                Pilih filter asset yang sedang habis. Outlet yang cocok akan di-unassign dari user
+                ini dan berpindah ke data tangguhan supervisor sampai asset siap lagi.
               </p>
             </div>
             <button
-              className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={hiddenBrands.length === 0}
-              onClick={() => setHiddenBrands([])}
+              className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
+              onClick={() => {
+                setVisualFilter("");
+                setBrandFilter("");
+                setSizeFilter("");
+                setSuspensionError(null);
+                setSuspensionFeedback(null);
+              }}
               type="button"
             >
-              Unhide Semua Brand
+              Reset Filter Asset
             </button>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {brandSummaryRows.map((row) => {
-              const isHidden = hiddenBrands.includes(row.brand);
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <label className="block space-y-2 text-sm font-medium text-slate-700">
+              <span>Visual PPOSM</span>
+              <select
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+                onChange={(event) => setVisualFilter(event.target.value)}
+                value={visualFilter}
+              >
+                <option value="">Semua Visual</option>
+                {visualOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block space-y-2 text-sm font-medium text-slate-700">
+              <span>Brand</span>
+              <select
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+                onChange={(event) => setBrandFilter(event.target.value)}
+                value={brandFilter}
+              >
+                <option value="">Semua Brand</option>
+                {brandOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block space-y-2 text-sm font-medium text-slate-700">
+              <span>Ukuran</span>
+              <select
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+                onChange={(event) => setSizeFilter(event.target.value)}
+                value={sizeFilter}
+              >
+                <option value="">Semua Ukuran</option>
+                {sizeOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
 
-              return (
-                <button
-                  className={`rounded-2xl border px-3 py-2 text-left text-sm transition ${
-                    isHidden
-                      ? "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300"
-                      : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-300"
-                  }`}
-                  key={row.brand}
-                  onClick={() => toggleBrandVisibility(row.brand)}
-                  type="button"
-                >
-                  <span className="block font-semibold">{row.brand}</span>
-                  <span className="mt-1 block text-xs">
-                    {row.outletCount} outlet • {row.totalSunscreen} sunscreen •{" "}
-                    {isHidden ? "Hidden" : "Active"}
-                  </span>
-                </button>
-              );
-            })}
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-slate-600">
+              Hasil filter asset:{" "}
+              <span className="font-semibold text-slate-900">{visibleAssignments.length}</span>{" "}
+              outlet dari {assignments.length} assignment aktif.
+            </p>
+            <button
+              className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:border-rose-300 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
+              disabled={isSuspensionPending || !hasAssetFilterActive || visibleAssignments.length === 0}
+              onClick={handleSuspendFilteredOutlets}
+              type="button"
+            >
+              {isSuspensionPending ? "Menangguhkan..." : "Tangguhkan Outlet Terfilter"}
+            </button>
           </div>
         </div>
 
-        {hiddenBrands.length > 0 ? (
+        {suspensionError ? (
+          <p className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {suspensionError}
+          </p>
+        ) : null}
+
+        {suspensionFeedback ? (
           <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Brand yang sedang di-hide: {hiddenBrands.join(", ")}. Ini hanya mengubah tampilan route
-            di halaman ini, tidak mengubah assignment supervisor.
+            {suspensionFeedback}
           </p>
         ) : null}
 
