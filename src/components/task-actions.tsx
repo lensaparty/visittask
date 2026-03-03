@@ -203,6 +203,13 @@ export function TaskActions({
       <p className="mt-4 text-xs text-slate-500">
         Check-in and check-out are only allowed within 100 meters.
       </p>
+      <div className="mt-4 rounded-2xl bg-cyan-50 px-4 py-3 text-xs leading-6 text-cyan-900">
+        <p className="font-semibold">Cara menyelesaikan task:</p>
+        <p className="mt-1">
+          Dekati outlet lalu tekan Check In untuk mulai visit. Setelah kunjungan selesai, tetap di
+          radius outlet lalu tekan Check Out. Task baru dianggap selesai setelah Check Out berhasil.
+        </p>
+      </div>
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <button
           className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-300"

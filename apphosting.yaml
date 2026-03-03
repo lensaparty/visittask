@@ -1,0 +1,22 @@
+# Firebase App Hosting configuration for this Next.js app.
+# Set the referenced secrets in Firebase before the first rollout:
+# - DATABASE_URL
+# - JWT_SECRET
+# - DEFAULT_IMPORTED_USER_PASSWORD
+
+env:
+  - variable: DATABASE_URL
+    secret: DATABASE_URL
+  - variable: JWT_SECRET
+    secret: JWT_SECRET
+  - variable: DEFAULT_IMPORTED_USER_PASSWORD
+    secret: DEFAULT_IMPORTED_USER_PASSWORD
+  - variable: NEXT_TELEMETRY_DISABLED
+    value: "1"
+
+runConfig:
+  minInstances: 0
+  maxInstances: 2
+  concurrency: 50
+  cpu: 1
+  memoryMiB: 512

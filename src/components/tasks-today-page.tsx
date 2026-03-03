@@ -1,6 +1,7 @@
 import { UserRole } from "@prisma/client";
 import Link from "next/link";
 import { DutyToggle } from "@/components/duty-toggle";
+import { FieldForceEntryAlert } from "@/components/field-force-entry-alert";
 import { FieldRouteMap } from "@/components/field-route-map";
 import { prisma } from "@/lib/prisma";
 import { startOfUtcDay } from "@/lib/schedule";
@@ -93,8 +94,10 @@ export async function TasksTodayPageContent() {
   const readyTaskCount = routeAssignments.filter((assignment) => assignment.todayTask).length;
 
   return (
-    <main className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-      <section className="space-y-6">
+    <>
+      <FieldForceEntryAlert />
+      <main className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <section className="space-y-6">
         <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -300,9 +303,9 @@ export async function TasksTodayPageContent() {
             )}
           </div>
         </section>
-      </section>
+        </section>
 
-      <aside className="space-y-6">
+        <aside className="space-y-6">
         <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
             Last Ping
@@ -341,7 +344,8 @@ export async function TasksTodayPageContent() {
             route di peta mengikuti daftar outlet yang sudah di-assign supervisor.
           </p>
         </section>
-      </aside>
-    </main>
+        </aside>
+      </main>
+    </>
   );
 }

@@ -131,3 +131,23 @@ The project was validated with:
 - `npm run typecheck`
 - `npm run lint`
 - `npm run build`
+
+## Firebase Deploy
+
+For Firebase App Hosting deployment, use:
+
+- [`apphosting.yaml`](/Users/mrwk/Documents/TASK%20TRACKING/apphosting.yaml)
+- [`docs/firebase-app-hosting-deploy.md`](/Users/mrwk/Documents/TASK%20TRACKING/docs/firebase-app-hosting-deploy.md)
+
+## Integration Notes
+
+If this module will later be merged into an attendance app, use the blueprint here:
+
+- [`docs/attendance-integration-blueprint.md`](/Users/mrwk/Documents/TASK%20TRACKING/docs/attendance-integration-blueprint.md)
+- [`docs/attendance-schema-merge-plan.md`](/Users/mrwk/Documents/TASK%20TRACKING/docs/attendance-schema-merge-plan.md)
+- [`docs/attendance-prisma-draft.md`](/Users/mrwk/Documents/TASK%20TRACKING/docs/attendance-prisma-draft.md)
+- [`docs/attendance-prisma-migration-draft.md`](/Users/mrwk/Documents/TASK%20TRACKING/docs/attendance-prisma-migration-draft.md)
+- [`docs/attendance-api-route-mapping.md`](/Users/mrwk/Documents/TASK%20TRACKING/docs/attendance-api-route-mapping.md)
+- [`docs/attendance-ui-navigation-draft.md`](/Users/mrwk/Documents/TASK%20TRACKING/docs/attendance-ui-navigation-draft.md)
+- [`docs/attendance-user-migration-plan.md`](/Users/mrwk/Documents/TASK%20TRACKING/docs/attendance-user-migration-plan.md)
+- [`docs/attendance-role-permission-matrix.md`](/Users/mrwk/Documents/TASK%20TRACKING/docs/attendance-role-permission-matrix.md)
