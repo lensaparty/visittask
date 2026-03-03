@@ -52,7 +52,6 @@ type OutletCatalogView = {
 };
 
 const CATALOG_PAGE_SIZE = 12;
-const MAP_PREVIEW_LIMIT = 150;
 const SCHEDULE_DAY_ORDER: Record<ScheduleDay, number> = {
   [ScheduleDay.SENIN]: 1,
   [ScheduleDay.SELASA]: 2,
@@ -263,7 +262,6 @@ export function OutletCatalogManager({
   const [savedAssignedCodes, setSavedAssignedCodes] = useState<string[]>([]);
   const [draftAssignedCodes, setDraftAssignedCodes] = useState<string[]>([]);
   const [showDraftedOutlets, setShowDraftedOutlets] = useState(false);
-  const [showAllOnMap, setShowAllOnMap] = useState(false);
   const [officeLatInput, setOfficeLatInput] = useState("");
   const [officeLonInput, setOfficeLonInput] = useState("");
   const [catalogPage, setCatalogPage] = useState(1);
@@ -354,9 +352,14 @@ export function OutletCatalogManager({
           lon: parseCoordinateInput(officeLonInput) as number,
         }
       : null;
-  const mapOutletsBase = showAllOnMap ? catalogOutlets : catalogOutlets.slice(0, MAP_PREVIEW_LIMIT);
+  const totalCatalogPages = Math.max(1, Math.ceil(catalogOutlets.length / CATALOG_PAGE_SIZE));
+  const safeCatalogPage = Math.min(catalogPage, totalCatalogPages);
+  const visibleOutlets = catalogOutlets.slice(
+    (safeCatalogPage - 1) * CATALOG_PAGE_SIZE,
+    safeCatalogPage * CATALOG_PAGE_SIZE,
+  );
   const previewOutlets = (officePosition
-    ? [...mapOutletsBase].sort((left, right) => {
+    ? [...visibleOutlets].sort((left, right) => {
         const leftDistance = haversineDistanceMeters(
           officePosition.lat,
           officePosition.lon,
@@ -372,7 +375,7 @@ export function OutletCatalogManager({
 
         return leftDistance - rightDistance;
       })
-    : mapOutletsBase
+    : visibleOutlets
   ).map((outlet, index) => ({
     kodeToko: outlet.storeCode,
     namaToko: outlet.name,
@@ -390,12 +393,6 @@ export function OutletCatalogManager({
         )
       : null,
   }));
-  const totalCatalogPages = Math.max(1, Math.ceil(catalogOutlets.length / CATALOG_PAGE_SIZE));
-  const safeCatalogPage = Math.min(catalogPage, totalCatalogPages);
-  const visibleOutlets = catalogOutlets.slice(
-    (safeCatalogPage - 1) * CATALOG_PAGE_SIZE,
-    safeCatalogPage * CATALOG_PAGE_SIZE,
-  );
   const pageNumbers = Array.from(
     new Set([
       1,
@@ -905,15 +902,11 @@ export function OutletCatalogManager({
             </h3>
           </div>
           <p className="text-sm text-slate-500">
-            {showAllOnMap
-              ? `Menampilkan semua ${catalogOutlets.length} outlet di peta.`
-              : catalogOutlets.length > MAP_PREVIEW_LIMIT
-                ? `Menampilkan ${MAP_PREVIEW_LIMIT} marker pertama dari ${catalogOutlets.length} outlet.`
-                : `${catalogOutlets.length} outlet tampil di peta.`}
+            {visibleOutlets.length} outlet di halaman ini tampil di peta.
           </p>
         </div>
 
-        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
           <label className="block space-y-2 text-sm font-medium text-slate-700">
             <span>Titik Kantor Lat</span>
             <input
@@ -932,17 +925,6 @@ export function OutletCatalogManager({
               value={officeLonInput}
             />
           </label>
-          <button
-            className={`mt-auto rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-              showAllOnMap
-                ? "border-cyan-200 bg-cyan-50 text-cyan-800 hover:border-cyan-300"
-                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-            }`}
-            onClick={() => setShowAllOnMap((currentValue) => !currentValue)}
-            type="button"
-          >
-            {showAllOnMap ? "Batasi Marker Peta" : "Tampilkan Semua di Peta"}
-          </button>
         </div>
 
         <div className="mt-4">
