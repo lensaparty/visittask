@@ -250,7 +250,6 @@ export function OutletCatalogManager({
   const [territoryFilter, setTerritoryFilter] = useState("");
   const [groupFilter, setGroupFilter] = useState("");
   const [scheduleFilter, setScheduleFilter] = useState<ScheduleDay | "">("");
-  const [sortBy, setSortBy] = useState<"day" | "address" | "code" | "territory" | "group">("day");
   const [selectedUserId, setSelectedUserId] = useState("");
   const [savedAssignedCodes, setSavedAssignedCodes] = useState<string[]>([]);
   const [draftAssignedCodes, setDraftAssignedCodes] = useState<string[]>([]);
@@ -330,50 +329,7 @@ export function OutletCatalogManager({
     return buildOutletSearchText(outlet).includes(normalizedQuery);
   });
 
-  const sortedOutlets =
-    sortBy === "day"
-      ? [...filteredOutlets].sort(compareBySchedule)
-      : sortBy === "code"
-      ? [...filteredOutlets].sort((left, right) => left.storeCode.localeCompare(right.storeCode))
-      : sortBy === "territory"
-        ? [...filteredOutlets].sort((left, right) => {
-            const leftKey = [
-              left.territory ?? "",
-              left.regency ?? "",
-              left.subdistrict ?? "",
-              left.address,
-              left.storeCode,
-            ].join("|");
-            const rightKey = [
-              right.territory ?? "",
-              right.regency ?? "",
-              right.subdistrict ?? "",
-              right.address,
-              right.storeCode,
-            ].join("|");
-
-            return leftKey.localeCompare(rightKey);
-          })
-        : sortBy === "group"
-          ? [...filteredOutlets].sort((left, right) => {
-              const leftKey = [
-                left.territoryGroup ?? "",
-                left.regency ?? "",
-                left.subdistrict ?? "",
-                left.address,
-                left.storeCode,
-              ].join("|");
-              const rightKey = [
-                right.territoryGroup ?? "",
-                right.regency ?? "",
-                right.subdistrict ?? "",
-                right.address,
-                right.storeCode,
-              ].join("|");
-
-              return leftKey.localeCompare(rightKey);
-            })
-          : filteredOutlets;
+  const sortedOutlets = [...filteredOutlets].sort(compareBySchedule);
 
   const availableOutlets = sortedOutlets.filter(
     (outlet) => !draftAssignedCodeSet.has(outlet.storeCode),
@@ -753,7 +709,7 @@ export function OutletCatalogManager({
           />
         </label>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <label className="block space-y-2 text-sm font-medium text-slate-700">
             <span>Filter Kabupaten</span>
             <select
@@ -850,23 +806,6 @@ export function OutletCatalogManager({
             </select>
           </label>
 
-          <label className="block space-y-2 text-sm font-medium text-slate-700">
-            <span>Urutkan</span>
-            <select
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-              onChange={(event) => {
-                setSortBy(event.target.value as "day" | "address" | "code" | "territory" | "group");
-                setCatalogPage(1);
-              }}
-              value={sortBy}
-            >
-              <option value="day">Hari Jadwal</option>
-              <option value="address">Alamat</option>
-              <option value="code">Kode Toko</option>
-              <option value="territory">Territory</option>
-              <option value="group">Group</option>
-            </select>
-          </label>
         </div>
 
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
