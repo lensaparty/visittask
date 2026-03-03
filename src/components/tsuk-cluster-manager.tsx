@@ -43,6 +43,8 @@ type ClusterGroup = {
   fallbackCount: number;
 };
 
+type ClusterMode = "COORDINATE" | "ADDRESS";
+
 type AssignmentSummary = {
   kodeToko: string;
   active: boolean;
@@ -228,10 +230,51 @@ function addressMatchScore(clusterOutlets: TsukOutletView[], outlet: TsukOutletV
   return bestScore;
 }
 
-function buildTsukClusters(
+function buildAddressOnlyClusters(
   outlets: TsukOutletView[],
   officePosition: { lat: number; lon: number } | null,
 ) {
+  const sorted = [...outlets].sort(defaultOutletSort);
+  const clusters: ClusterGroup[] = [];
+
+  for (let index = 0; index < sorted.length; index += CLUSTER_SIZE) {
+    const clusterBase = sorted.slice(index, index + CLUSTER_SIZE);
+    const orderedOutlets = clusterBase.map((outlet, outletIndex) => ({
+      ...outlet,
+      order: outletIndex + 1,
+      distanceFromOfficeM:
+        officePosition && hasUsableCoordinates(outlet)
+          ? haversineDistanceMeters(
+              officePosition.lat,
+              officePosition.lon,
+              outlet.latitude,
+              outlet.longitude,
+            )
+          : null,
+      usedAddressFallback: true,
+    }));
+
+    clusters.push({
+      id: `cluster-${clusters.length + 1}`,
+      label: `Grup ${clusters.length + 1}`,
+      color: CLUSTER_COLORS[clusters.length % CLUSTER_COLORS.length],
+      outlets: orderedOutlets,
+      fallbackCount: orderedOutlets.length,
+    });
+  }
+
+  return clusters;
+}
+
+function buildTsukClusters(
+  outlets: TsukOutletView[],
+  officePosition: { lat: number; lon: number } | null,
+  clusterMode: ClusterMode,
+) {
+  if (clusterMode === "ADDRESS") {
+    return buildAddressOnlyClusters(outlets, officePosition);
+  }
+
   const validOutlets = outlets.filter((outlet) => hasReliableCoordinates(outlet, officePosition));
   const fallbackOutlets = outlets.filter(
     (outlet) => !hasReliableCoordinates(outlet, officePosition),
@@ -389,6 +432,7 @@ export function TsukClusterManager({
   const [scheduleDayFilter, setScheduleDayFilter] = useState<ScheduleDay | "">("");
   const [officeLatInput, setOfficeLatInput] = useState("");
   const [officeLonInput, setOfficeLonInput] = useState("");
+  const [clusterMode, setClusterMode] = useState<ClusterMode>("COORDINATE");
   const [selectedClusterIndex, setSelectedClusterIndex] = useState(0);
   const [selectedUserId, setSelectedUserId] = useState("");
   const [assignError, setAssignError] = useState<string | null>(null);
@@ -515,8 +559,8 @@ export function TsukClusterManager({
   }, [officeLatInput, officeLonInput]);
 
   const clusters = useMemo<ClusterGroup[]>(
-    () => buildTsukClusters(filteredOutlets, officePosition),
-    [filteredOutlets, officePosition],
+    () => buildTsukClusters(filteredOutlets, officePosition, clusterMode),
+    [clusterMode, filteredOutlets, officePosition],
   );
   const safeSelectedClusterIndex =
     clusters.length === 0 ? 0 : Math.min(selectedClusterIndex, clusters.length - 1);
@@ -525,7 +569,11 @@ export function TsukClusterManager({
 
   const selectedClusterPreview = selectedCluster
     ? selectedCluster.outlets
-        .filter((outlet) => hasReliableCoordinates(outlet, officePosition))
+        .filter((outlet) =>
+          clusterMode === "ADDRESS"
+            ? hasUsableCoordinates(outlet)
+            : hasReliableCoordinates(outlet, officePosition),
+        )
         .map((outlet) => ({
         kodeToko: outlet.storeCode,
         namaToko: outlet.name,
@@ -634,6 +682,15 @@ export function TsukClusterManager({
           dan wilayah.
         </p>
 
+        <p className="mt-2 rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+          <span className="font-semibold text-slate-900">Saran:</span> pilih{" "}
+          <span className="font-semibold text-cyan-800">Koordinat Database</span> kalau data
+          koordinat outlet rapi, karena ini paling akurat. Pilih{" "}
+          <span className="font-semibold text-amber-700">Fallback Alamat</span> kalau banyak
+          koordinat error, karena mode ini lebih aman dan grouping dibentuk dari alamat serta
+          wilayah.
+        </p>
+
         <label className="mt-5 block space-y-2 text-sm font-medium text-slate-700">
           <span>Cari TSUK / Outlet</span>
           <input
@@ -644,7 +701,22 @@ export function TsukClusterManager({
           />
         </label>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
+          <label className="block space-y-2 text-sm font-medium text-slate-700">
+            <span>Mode Cluster</span>
+            <select
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => {
+                setClusterMode(event.target.value as ClusterMode);
+                setSelectedClusterIndex(0);
+              }}
+              value={clusterMode}
+            >
+              <option value="COORDINATE">Koordinat Database</option>
+              <option value="ADDRESS">Fallback Alamat</option>
+            </select>
+          </label>
+
           <label className="block space-y-2 text-sm font-medium text-slate-700">
             <span>Filter Kabupaten</span>
             <select
@@ -901,9 +973,11 @@ export function TsukClusterManager({
               <AssignmentPreviewMap
                 emptyText="Pilih grup TSUK untuk melihat peta cluster."
                 helperText={
-                  officePosition
-                    ? "Nomor marker diurutkan dari titik kantor ke outlet terdekat sampai terjauh. Outlets fallback alamat tetap ikut grup."
-                    : "Isi titik kantor kalau mau mengurutkan dari kantor ke outlet terjauh."
+                  clusterMode === "ADDRESS"
+                    ? "Mode fallback alamat mengelompokkan outlet dari alamat dan wilayah. Marker hanya tampil untuk outlet yang punya koordinat usable."
+                    : officePosition
+                      ? "Nomor marker diurutkan dari titik kantor ke outlet terdekat sampai terjauh. Outlets fallback alamat tetap ikut grup."
+                      : "Isi titik kantor kalau mau mengurutkan dari kantor ke outlet terjauh."
                 }
                 officePosition={officePosition}
                 outlets={selectedClusterPreview}
