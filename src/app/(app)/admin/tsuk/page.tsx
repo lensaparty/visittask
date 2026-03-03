@@ -35,6 +35,11 @@ export default async function AdminTsukPage() {
         oddScheduleDay: true,
         evenScheduleDay: true,
         supervisorPhone: true,
+        typeOutlet: true,
+        visualPposm: true,
+        brand: true,
+        size: true,
+        sunscreenCount: true,
         latitude: true,
         longitude: true,
         supervisor: {
@@ -64,6 +69,11 @@ export default async function AdminTsukPage() {
     supervisorName:
       outlet.supervisor?.name ?? getSupervisorFallbackByDistrict(outlet.district),
     supervisorPhone: outlet.supervisorPhone,
+    typeOutlet: outlet.typeOutlet,
+    visualPposm: outlet.visualPposm,
+    brand: outlet.brand,
+    size: outlet.size,
+    sunscreenCount: outlet.sunscreenCount,
     latitude: outlet.latitude,
     longitude: outlet.longitude,
   }));

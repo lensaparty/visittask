@@ -71,6 +71,7 @@ export async function TasksTodayPageContent() {
     visualPposm: assignment.outlet.visualPposm ?? null,
     brand: assignment.outlet.brand ?? null,
     ukuran: assignment.outlet.size ?? null,
+    jumlahSunscreen: assignment.outlet.sunscreenCount ?? null,
   }));
 
   return (

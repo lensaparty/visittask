@@ -19,6 +19,7 @@ type RouteAssignment = {
   visualPposm: string | null;
   brand: string | null;
   ukuran: string | null;
+  jumlahSunscreen: number | null;
 };
 
 type UserPosition = {
@@ -310,6 +311,17 @@ export function FieldRoutePlanner({
                   <p className="mt-1 text-slate-600">
                     {assignment.visualPposm ?? "-"} • {assignment.brand ?? "-"} •{" "}
                     {assignment.ukuran ?? "-"}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 px-3 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Kebutuhan Visit
+                  </p>
+                  <p className="mt-1 text-slate-700">
+                    Jumlah Sunscreen: {assignment.jumlahSunscreen ?? 0}
+                  </p>
+                  <p className="mt-1 text-slate-600">
+                    Cek pemasangan sesuai visual PPOSM, brand, dan ukuran outlet.
                   </p>
                 </div>
                 <div className="rounded-2xl bg-slate-50 px-3 py-3">

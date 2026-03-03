@@ -25,6 +25,11 @@ type TsukOutletView = {
   evenScheduleDay: ScheduleDay | null;
   supervisorName: string | null;
   supervisorPhone: string | null;
+  typeOutlet: string | null;
+  visualPposm: string | null;
+  brand: string | null;
+  size: string | null;
+  sunscreenCount: number | null;
   latitude: number;
   longitude: number;
 };
@@ -691,6 +696,11 @@ export function TsukClusterManager({
         "Jadwal Genap": formatScheduleDay(outlet.evenScheduleDay),
         Supervisor: outlet.supervisorName ?? "-",
         "Telp Supervisor": outlet.supervisorPhone ?? "-",
+        "Type Outlet": outlet.typeOutlet ?? "-",
+        "Visual PPOSM": outlet.visualPposm ?? "-",
+        Brand: outlet.brand ?? "-",
+        Ukuran: outlet.size ?? "-",
+        "Jumlah Sunscreen": outlet.sunscreenCount ?? 0,
         Latitude: outlet.latitude,
         Longitude: outlet.longitude,
         "Jarak Dari Kantor (m)":
@@ -735,6 +745,11 @@ export function TsukClusterManager({
           "Jadwal Genap": formatScheduleDay(outlet.evenScheduleDay),
           Supervisor: outlet.supervisorName ?? "-",
           "Telp Supervisor": outlet.supervisorPhone ?? "-",
+          "Type Outlet": outlet.typeOutlet ?? "-",
+          "Visual PPOSM": outlet.visualPposm ?? "-",
+          Brand: outlet.brand ?? "-",
+          Ukuran: outlet.size ?? "-",
+          "Jumlah Sunscreen": outlet.sunscreenCount ?? 0,
           Latitude: outlet.latitude,
           Longitude: outlet.longitude,
           "Jarak Dari Kantor (m)":
@@ -1216,6 +1231,25 @@ export function TsukClusterManager({
                         </p>
                         <p className="mt-1 text-slate-900">{outlet.supervisorName ?? "-"}</p>
                         <p className="mt-1">Telp: {outlet.supervisorPhone ?? "-"}</p>
+                      </div>
+                      <div className="rounded-2xl bg-slate-50 px-3 py-3 text-sm text-slate-600">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          Outlet Detail
+                        </p>
+                        <p className="mt-1 text-slate-900">Type: {outlet.typeOutlet ?? "-"}</p>
+                        <p className="mt-1">
+                          {outlet.visualPposm ?? "-"} • {outlet.brand ?? "-"} •{" "}
+                          {outlet.size ?? "-"}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-slate-50 px-3 py-3 text-sm text-slate-600">
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                          Kebutuhan Visit
+                        </p>
+                        <p className="mt-1 text-slate-900">
+                          Jumlah Sunscreen: {outlet.sunscreenCount ?? 0}
+                        </p>
+                        <p className="mt-1">Cek pemasangan sesuai visual & brand outlet.</p>
                       </div>
                     </div>
 
