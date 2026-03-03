@@ -1,5 +1,6 @@
 "use client";
 
+import { ScheduleDay } from "@prisma/client";
 import { useDeferredValue, useEffect, useState, useTransition } from "react";
 
 type CatalogAssignableUser = {
@@ -36,6 +37,8 @@ type OutletCatalogView = {
   district: string | null;
   territory: string | null;
   territoryGroup: string | null;
+  oddScheduleDay: ScheduleDay | null;
+  evenScheduleDay: ScheduleDay | null;
   supervisorName: string | null;
   supervisorPhone: string | null;
   typeOutlet: string | null;
@@ -47,9 +50,31 @@ type OutletCatalogView = {
 };
 
 const CATALOG_PAGE_SIZE = 12;
+const SCHEDULE_DAY_ORDER: Record<ScheduleDay, number> = {
+  [ScheduleDay.SENIN]: 1,
+  [ScheduleDay.SELASA]: 2,
+  [ScheduleDay.RABU]: 3,
+  [ScheduleDay.KAMIS]: 4,
+  [ScheduleDay.JUMAT]: 5,
+  [ScheduleDay.SABTU]: 6,
+  [ScheduleDay.MINGGU]: 7,
+};
+const SCHEDULE_DAY_LABELS: Record<ScheduleDay, string> = {
+  [ScheduleDay.SENIN]: "Senin",
+  [ScheduleDay.SELASA]: "Selasa",
+  [ScheduleDay.RABU]: "Rabu",
+  [ScheduleDay.KAMIS]: "Kamis",
+  [ScheduleDay.JUMAT]: "Jumat",
+  [ScheduleDay.SABTU]: "Sabtu",
+  [ScheduleDay.MINGGU]: "Minggu",
+};
 
 function formatCoordinate(value: number) {
   return value.toFixed(6);
+}
+
+function formatScheduleDay(day: ScheduleDay | null) {
+  return day ? SCHEDULE_DAY_LABELS[day] : "-";
 }
 
 function formatLocalDate(date: Date) {
@@ -67,6 +92,8 @@ function buildOutletSearchText(outlet: OutletCatalogView) {
     outlet.district ?? "",
     outlet.territory ?? "",
     outlet.territoryGroup ?? "",
+    formatScheduleDay(outlet.oddScheduleDay),
+    formatScheduleDay(outlet.evenScheduleDay),
     outlet.supervisorName ?? "",
     outlet.supervisorPhone ?? "",
     outlet.typeOutlet ?? "",
@@ -78,6 +105,36 @@ function buildOutletSearchText(outlet: OutletCatalogView) {
   ]
     .join(" ")
     .toLowerCase();
+}
+
+function compareBySchedule(left: OutletCatalogView, right: OutletCatalogView) {
+  const leftOddOrder = left.oddScheduleDay ? SCHEDULE_DAY_ORDER[left.oddScheduleDay] : 99;
+  const leftEvenOrder = left.evenScheduleDay ? SCHEDULE_DAY_ORDER[left.evenScheduleDay] : 99;
+  const rightOddOrder = right.oddScheduleDay ? SCHEDULE_DAY_ORDER[right.oddScheduleDay] : 99;
+  const rightEvenOrder = right.evenScheduleDay ? SCHEDULE_DAY_ORDER[right.evenScheduleDay] : 99;
+  const leftEarliest = Math.min(leftOddOrder, leftEvenOrder);
+  const rightEarliest = Math.min(rightOddOrder, rightEvenOrder);
+
+  const leftKey = [
+    String(leftEarliest === 99 ? 99 : leftEarliest).padStart(2, "0"),
+    String(leftOddOrder).padStart(2, "0"),
+    String(leftEvenOrder).padStart(2, "0"),
+    left.regency ?? "",
+    left.subdistrict ?? "",
+    left.address,
+    left.storeCode,
+  ].join("|");
+  const rightKey = [
+    String(rightEarliest === 99 ? 99 : rightEarliest).padStart(2, "0"),
+    String(rightOddOrder).padStart(2, "0"),
+    String(rightEvenOrder).padStart(2, "0"),
+    right.regency ?? "",
+    right.subdistrict ?? "",
+    right.address,
+    right.storeCode,
+  ].join("|");
+
+  return leftKey.localeCompare(rightKey);
 }
 
 function OutletCatalogCard({
@@ -141,6 +198,17 @@ function OutletCatalogCard({
         </div>
         <div className="rounded-2xl bg-slate-50 px-3 py-3">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+            Jadwal
+          </p>
+          <p className="mt-1 text-slate-700">
+            Ganjil: {formatScheduleDay(outlet.oddScheduleDay)}
+          </p>
+          <p className="mt-1 text-slate-600">
+            Genap: {formatScheduleDay(outlet.evenScheduleDay)}
+          </p>
+        </div>
+        <div className="rounded-2xl bg-slate-50 px-3 py-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
             Supervisor
           </p>
           <p className="mt-1 text-slate-700">{outlet.supervisorName ?? "-"}</p>
@@ -181,7 +249,7 @@ export function OutletCatalogManager({
   const [subdistrictFilter, setSubdistrictFilter] = useState("");
   const [territoryFilter, setTerritoryFilter] = useState("");
   const [groupFilter, setGroupFilter] = useState("");
-  const [sortBy, setSortBy] = useState<"address" | "code" | "territory" | "group">("address");
+  const [sortBy, setSortBy] = useState<"day" | "address" | "code" | "territory" | "group">("day");
   const [selectedUserId, setSelectedUserId] = useState("");
   const [savedAssignedCodes, setSavedAssignedCodes] = useState<string[]>([]);
   const [draftAssignedCodes, setDraftAssignedCodes] = useState<string[]>([]);
@@ -254,7 +322,9 @@ export function OutletCatalogManager({
   });
 
   const sortedOutlets =
-    sortBy === "code"
+    sortBy === "day"
+      ? [...filteredOutlets].sort(compareBySchedule)
+      : sortBy === "code"
       ? [...filteredOutlets].sort((left, right) => left.storeCode.localeCompare(right.storeCode))
       : sortBy === "territory"
         ? [...filteredOutlets].sort((left, right) => {
@@ -511,7 +581,7 @@ export function OutletCatalogManager({
           <p className="text-sm text-slate-500">
             {normalizedQuery
               ? `Hasil pencarian "${deferredQuery.trim()}"`
-              : "Urutan default: kabupaten, kecamatan, alamat, lalu koordinat"}
+              : "Urutan default: hari jadwal, lalu kabupaten, kecamatan, dan alamat"}
           </p>
         </div>
 
@@ -757,11 +827,12 @@ export function OutletCatalogManager({
             <select
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
               onChange={(event) => {
-                setSortBy(event.target.value as "address" | "code" | "territory" | "group");
+                setSortBy(event.target.value as "day" | "address" | "code" | "territory" | "group");
                 setCatalogPage(1);
               }}
               value={sortBy}
             >
+              <option value="day">Hari Jadwal</option>
               <option value="address">Alamat</option>
               <option value="code">Kode Toko</option>
               <option value="territory">Territory</option>

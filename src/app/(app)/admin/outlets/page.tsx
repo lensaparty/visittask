@@ -32,6 +32,8 @@ export default async function AdminOutletsPage() {
         district: true,
         territory: true,
         territoryGroup: true,
+        oddScheduleDay: true,
+        evenScheduleDay: true,
         supervisorPhone: true,
         typeOutlet: true,
         visualPposm: true,
@@ -81,6 +83,8 @@ export default async function AdminOutletsPage() {
       district: outlet.district,
       territory: outlet.territory,
       territoryGroup: outlet.territoryGroup,
+      oddScheduleDay: outlet.oddScheduleDay,
+      evenScheduleDay: outlet.evenScheduleDay,
       supervisorName:
         outlet.supervisor?.name ?? getSupervisorFallbackByDistrict(outlet.district),
       supervisorPhone: outlet.supervisorPhone,
