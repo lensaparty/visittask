@@ -2,6 +2,7 @@
 
 import { ScheduleDay } from "@prisma/client";
 import { AssignmentPreviewMap } from "@/components/assignment-preview-map";
+import { haversineDistanceMeters } from "@/lib/geo";
 import { useDeferredValue, useEffect, useState, useTransition } from "react";
 
 type CatalogAssignableUser = {
@@ -77,6 +78,12 @@ function formatCoordinate(value: number) {
 
 function formatScheduleDay(day: ScheduleDay | null) {
   return day ? SCHEDULE_DAY_LABELS[day] : "-";
+}
+
+function parseCoordinateInput(value: string) {
+  const parsed = Number(value.trim());
+
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function formatLocalDate(date: Date) {
@@ -256,6 +263,9 @@ export function OutletCatalogManager({
   const [savedAssignedCodes, setSavedAssignedCodes] = useState<string[]>([]);
   const [draftAssignedCodes, setDraftAssignedCodes] = useState<string[]>([]);
   const [showDraftedOutlets, setShowDraftedOutlets] = useState(false);
+  const [showAllOnMap, setShowAllOnMap] = useState(false);
+  const [officeLatInput, setOfficeLatInput] = useState("");
+  const [officeLonInput, setOfficeLonInput] = useState("");
   const [catalogPage, setCatalogPage] = useState(1);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [assignFeedback, setAssignFeedback] = useState<string | null>(null);
@@ -337,12 +347,48 @@ export function OutletCatalogManager({
     (outlet) => !draftAssignedCodeSet.has(outlet.storeCode),
   );
   const catalogOutlets = showDraftedOutlets ? sortedOutlets : availableOutlets;
-  const previewOutlets = catalogOutlets.slice(0, MAP_PREVIEW_LIMIT).map((outlet) => ({
+  const officePosition =
+    parseCoordinateInput(officeLatInput) != null && parseCoordinateInput(officeLonInput) != null
+      ? {
+          lat: parseCoordinateInput(officeLatInput) as number,
+          lon: parseCoordinateInput(officeLonInput) as number,
+        }
+      : null;
+  const mapOutletsBase = showAllOnMap ? catalogOutlets : catalogOutlets.slice(0, MAP_PREVIEW_LIMIT);
+  const previewOutlets = (officePosition
+    ? [...mapOutletsBase].sort((left, right) => {
+        const leftDistance = haversineDistanceMeters(
+          officePosition.lat,
+          officePosition.lon,
+          left.latitude,
+          left.longitude,
+        );
+        const rightDistance = haversineDistanceMeters(
+          officePosition.lat,
+          officePosition.lon,
+          right.latitude,
+          right.longitude,
+        );
+
+        return leftDistance - rightDistance;
+      })
+    : mapOutletsBase
+  ).map((outlet, index) => ({
     kodeToko: outlet.storeCode,
     namaToko: outlet.name,
     alamat: outlet.address,
     lat: outlet.latitude,
     lon: outlet.longitude,
+    group: outlet.territoryGroup,
+    order: index + 1,
+    distanceFromOfficeM: officePosition
+      ? haversineDistanceMeters(
+          officePosition.lat,
+          officePosition.lon,
+          outlet.latitude,
+          outlet.longitude,
+        )
+      : null,
   }));
   const totalCatalogPages = Math.max(1, Math.ceil(catalogOutlets.length / CATALOG_PAGE_SIZE));
   const safeCatalogPage = Math.min(catalogPage, totalCatalogPages);
@@ -859,20 +905,55 @@ export function OutletCatalogManager({
             </h3>
           </div>
           <p className="text-sm text-slate-500">
-            {catalogOutlets.length > MAP_PREVIEW_LIMIT
-              ? `Menampilkan ${MAP_PREVIEW_LIMIT} marker pertama dari ${catalogOutlets.length} outlet.`
-              : `${catalogOutlets.length} outlet tampil di peta.`}
+            {showAllOnMap
+              ? `Menampilkan semua ${catalogOutlets.length} outlet di peta.`
+              : catalogOutlets.length > MAP_PREVIEW_LIMIT
+                ? `Menampilkan ${MAP_PREVIEW_LIMIT} marker pertama dari ${catalogOutlets.length} outlet.`
+                : `${catalogOutlets.length} outlet tampil di peta.`}
           </p>
+        </div>
+
+        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+          <label className="block space-y-2 text-sm font-medium text-slate-700">
+            <span>Titik Kantor Lat</span>
+            <input
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => setOfficeLatInput(event.target.value)}
+              placeholder="-6.800000"
+              value={officeLatInput}
+            />
+          </label>
+          <label className="block space-y-2 text-sm font-medium text-slate-700">
+            <span>Titik Kantor Lon</span>
+            <input
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => setOfficeLonInput(event.target.value)}
+              placeholder="107.100000"
+              value={officeLonInput}
+            />
+          </label>
+          <button
+            className={`mt-auto rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+              showAllOnMap
+                ? "border-cyan-200 bg-cyan-50 text-cyan-800 hover:border-cyan-300"
+                : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+            }`}
+            onClick={() => setShowAllOnMap((currentValue) => !currentValue)}
+            type="button"
+          >
+            {showAllOnMap ? "Batasi Marker Peta" : "Tampilkan Semua di Peta"}
+          </button>
         </div>
 
         <div className="mt-4">
           <AssignmentPreviewMap
             emptyText="Belum ada outlet yang cocok untuk dipreview di peta."
             helperText={
-              catalogOutlets.length > MAP_PREVIEW_LIMIT
-                ? "Marker hijau menunjukkan hasil filter teratas di katalog. Gunakan filter agar preview peta lebih fokus."
-                : "Marker hijau menunjukkan outlet hasil filter yang sedang tampil di katalog."
+              officePosition
+                ? "Warna marker mengikuti group. Nomor marker disusun dari outlet terdekat ke terjauh berdasarkan titik kantor."
+                : "Warna marker mengikuti group. Isi titik kantor agar nomor marker diurutkan dari kantor ke outlet terjauh."
             }
+            officePosition={officePosition}
             outlets={previewOutlets}
           />
         </div>
