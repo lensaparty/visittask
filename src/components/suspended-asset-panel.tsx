@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
 type SuspendedAssetAssignment = {
   id: string;
@@ -47,6 +47,7 @@ export function SuspendedAssetPanel({
   const [visualFilter, setVisualFilter] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
   const [sizeFilter, setSizeFilter] = useState("");
+  const [selectedAssignmentIds, setSelectedAssignmentIds] = useState<string[]>([]);
   const [, startTransition] = useTransition();
   const hasAssignments = assignments.length > 0;
   const visualOptions = useMemo(
@@ -94,6 +95,24 @@ export function SuspendedAssetPanel({
     }),
     [filteredAssignments],
   );
+  const visibleAssignmentIds = useMemo(
+    () => visibleAssignments.map((assignment) => assignment.id),
+    [visibleAssignments],
+  );
+  const allVisibleSelected =
+    visibleAssignmentIds.length > 0 &&
+    visibleAssignmentIds.every((assignmentId) =>
+      selectedAssignmentIds.includes(assignmentId),
+    );
+  const selectedCount = selectedAssignmentIds.length;
+
+  useEffect(() => {
+    const filteredIds = new Set(filteredAssignments.map((assignment) => assignment.id));
+
+    setSelectedAssignmentIds((currentIds) =>
+      currentIds.filter((assignmentId) => filteredIds.has(assignmentId)),
+    );
+  }, [filteredAssignments]);
 
   async function handleExportWorkbook() {
     if (!hasAssignments || filteredAssignments.length === 0) {
@@ -155,6 +174,9 @@ export function SuspendedAssetPanel({
           }
 
           setFeedback(payload.message ?? "Assignment reactivated.");
+          setSelectedAssignmentIds((currentIds) =>
+            currentIds.filter((assignmentId) => !assignmentIds.includes(assignmentId)),
+          );
           router.refresh();
         } catch (reactivateError) {
           setError(
@@ -281,6 +303,16 @@ export function SuspendedAssetPanel({
                 Reset Filter
               </button>
               <button
+                className="rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-2.5 text-sm font-semibold text-cyan-700 transition hover:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={pendingAssignmentId !== null || selectedCount === 0}
+                onClick={() => handleReactivate(selectedAssignmentIds)}
+                type="button"
+              >
+                {pendingAssignmentId === "__bulk__"
+                  ? "Mengaktifkan..."
+                  : `Aktifkan Terpilih (${selectedCount})`}
+              </button>
+              <button
                 className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:border-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={pendingAssignmentId !== null || filteredAssignments.length === 0}
                 onClick={() => handleReactivate(filteredAssignments.map((assignment) => assignment.id))}
@@ -307,24 +339,71 @@ export function SuspendedAssetPanel({
         {!hasAssignments ? (
           <p className="text-sm text-slate-500">Belum ada data tangguhan asset.</p>
         ) : (
-          visibleAssignments.map((assignment) => (
+          <>
+            <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+              <label className="inline-flex items-center gap-2 font-medium text-slate-700">
+                <input
+                  checked={allVisibleSelected}
+                  className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-400"
+                  onChange={(event) => {
+                    setSelectedAssignmentIds((currentIds) => {
+                      if (event.target.checked) {
+                        return [...new Set([...currentIds, ...visibleAssignmentIds])];
+                      }
+
+                      return currentIds.filter(
+                        (assignmentId) => !visibleAssignmentIds.includes(assignmentId),
+                      );
+                    });
+                  }}
+                  type="checkbox"
+                />
+                Pilih semua yang tampil
+              </label>
+              <p>
+                Batch dipilih:{" "}
+                <span className="font-semibold text-slate-900">{selectedCount}</span>
+              </p>
+            </div>
+
+            {visibleAssignments.map((assignment) => (
             <div className="rounded-2xl border border-slate-200 px-4 py-4" key={assignment.id}>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="font-semibold text-slate-900">{assignment.outletName}</p>
-                  <p className="text-sm text-slate-600">
-                    {assignment.outletCode} • {assignment.fieldForceName}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {assignment.typeOutlet ?? "-"} • {assignment.visualPposm ?? "-"} •{" "}
-                    {assignment.brand ?? "-"} • {assignment.ukuran ?? "-"}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Jumlah Sunscreen: {assignment.jumlahSunscreen ?? 0}
-                  </p>
-                  <p className="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-slate-400">
-                    Ditangguhkan {formatSuspendedAt(assignment.suspendedAt)}
-                  </p>
+                <div className="flex gap-3">
+                  <label className="pt-1">
+                    <input
+                      checked={selectedAssignmentIds.includes(assignment.id)}
+                      className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-400"
+                      onChange={(event) => {
+                        setSelectedAssignmentIds((currentIds) => {
+                          if (event.target.checked) {
+                            return [...new Set([...currentIds, assignment.id])];
+                          }
+
+                          return currentIds.filter(
+                            (assignmentId) => assignmentId !== assignment.id,
+                          );
+                        });
+                      }}
+                      type="checkbox"
+                    />
+                  </label>
+                  <div>
+                    <p className="font-semibold text-slate-900">{assignment.outletName}</p>
+                    <p className="text-sm text-slate-600">
+                      {assignment.outletCode} • {assignment.fieldForceName}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {assignment.typeOutlet ?? "-"} • {assignment.visualPposm ?? "-"} •{" "}
+                      {assignment.brand ?? "-"} • {assignment.ukuran ?? "-"}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Jumlah Sunscreen: {assignment.jumlahSunscreen ?? 0}
+                    </p>
+                    <p className="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-slate-400">
+                      Ditangguhkan {formatSuspendedAt(assignment.suspendedAt)}
+                    </p>
+                  </div>
                 </div>
                 <button
                   className="inline-flex rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:border-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
@@ -336,7 +415,8 @@ export function SuspendedAssetPanel({
                 </button>
               </div>
             </div>
-          ))
+            ))}
+          </>
         )}
       </div>
 

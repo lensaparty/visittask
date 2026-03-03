@@ -30,6 +30,7 @@ export function RoleNavbar({
           { href: "/admin/import", label: "Import" },
           { href: "/admin/outlets", label: "Outlets" },
           { href: "/admin/tsuk", label: "TSUK" },
+          { href: "/admin/attendance-prototype", label: "Absen App" },
           { href: "/admin/assign", label: "Assign" },
           { href: "/admin/users", label: "Users" },
         ];
