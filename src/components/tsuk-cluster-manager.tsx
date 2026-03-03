@@ -61,6 +61,11 @@ type BulkAssignmentResult = {
   message?: string;
 };
 
+const CLUSTER_MODE_LABELS: Record<ClusterMode, string> = {
+  COORDINATE: "By Koordinat",
+  ADDRESS: "By Alamat",
+};
+
 const CLUSTER_SIZE = 35;
 const OFFICE_DISTANCE_THRESHOLD_METERS = 250_000;
 const CLUSTER_COLORS = [
@@ -264,6 +269,10 @@ function buildAddressOnlyClusters(
   }
 
   return clusters;
+}
+
+function formatScheduleDay(day: ScheduleDay | null) {
+  return day ? SCHEDULE_DAY_LABELS[day] : "-";
 }
 
 function buildTsukClusters(
@@ -659,6 +668,47 @@ export function TsukClusterManager({
     });
   }
 
+  function handleExportSelectedGroup() {
+    if (!selectedCluster) {
+      return;
+    }
+
+    void (async () => {
+      const { utils, writeFile } = await import("xlsx");
+      const rows = selectedCluster.outlets.map((outlet) => ({
+        "Mode Cluster": CLUSTER_MODE_LABELS[clusterMode],
+        Grup: selectedCluster.label,
+        Stop: outlet.order,
+        "Kode Toko": outlet.storeCode,
+        "Nama Toko": outlet.name,
+        Alamat: outlet.address,
+        Kecamatan: outlet.subdistrict ?? "-",
+        Kabupaten: outlet.regency ?? "-",
+        Distrik: outlet.district ?? "-",
+        Territory: outlet.territory ?? "-",
+        Group: outlet.territoryGroup ?? "-",
+        "Jadwal Ganjil": formatScheduleDay(outlet.oddScheduleDay),
+        "Jadwal Genap": formatScheduleDay(outlet.evenScheduleDay),
+        Supervisor: outlet.supervisorName ?? "-",
+        "Telp Supervisor": outlet.supervisorPhone ?? "-",
+        Latitude: outlet.latitude,
+        Longitude: outlet.longitude,
+        "Jarak Dari Kantor (m)":
+          outlet.distanceFromOfficeM != null ? Math.round(outlet.distanceFromOfficeM) : "",
+        "Fallback Alamat": outlet.usedAddressFallback ? "Ya" : "Tidak",
+      }));
+
+      const worksheet = utils.json_to_sheet(rows);
+      const workbook = utils.book_new();
+      utils.book_append_sheet(workbook, worksheet, "TSUK");
+
+      const safeName = `${selectedCluster.label}-${clusterMode.toLowerCase()}`
+        .replace(/\s+/g, "-")
+        .toLowerCase();
+      writeFile(workbook, `tsuk-${safeName}.xlsx`);
+    })();
+  }
+
   return (
     <div className="space-y-6">
       <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
@@ -914,7 +964,12 @@ export function TsukClusterManager({
                   Hasil cluster otomatis
                 </h3>
               </div>
-              <p className="text-sm text-slate-500">{clusters.length} grup terbentuk</p>
+              <div className="text-sm text-slate-500">
+                <p>{clusters.length} grup terbentuk</p>
+                <p className="mt-1 font-medium text-slate-700">
+                  {CLUSTER_MODE_LABELS[clusterMode]}
+                </p>
+              </div>
             </div>
 
             {clusters.length === 0 ? (
@@ -941,6 +996,13 @@ export function TsukClusterManager({
                         <p className={`text-xs ${index === safeSelectedClusterIndex ? "text-slate-300" : "text-slate-500"}`}>
                           {cluster.outlets.length} outlet
                         </p>
+                        <p
+                          className={`text-[11px] font-semibold uppercase tracking-[0.12em] ${
+                            index === safeSelectedClusterIndex ? "text-cyan-300" : "text-slate-400"
+                          }`}
+                        >
+                          {CLUSTER_MODE_LABELS[clusterMode]}
+                        </p>
                       </div>
                     </div>
                     <span className={`text-xs font-semibold ${index === safeSelectedClusterIndex ? "text-cyan-300" : "text-slate-500"}`}>
@@ -964,9 +1026,22 @@ export function TsukClusterManager({
                   {selectedCluster?.label ?? "Pilih grup dulu"}
                 </h3>
               </div>
-              {selectedCluster ? (
-                <p className="text-sm text-slate-500">{selectedCluster.outlets.length} marker</p>
-              ) : null}
+              <div className="flex flex-wrap items-center gap-3">
+                {selectedCluster ? (
+                  <p className="text-sm text-slate-500">{selectedCluster.outlets.length} marker</p>
+                ) : null}
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600">
+                  {CLUSTER_MODE_LABELS[clusterMode]}
+                </span>
+                <button
+                  className="rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-800 transition hover:border-cyan-300 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
+                  disabled={!selectedCluster}
+                  onClick={handleExportSelectedGroup}
+                  type="button"
+                >
+                  Export Excel Grup
+                </button>
+              </div>
             </div>
 
             <div className="mt-4">
@@ -996,7 +1071,12 @@ export function TsukClusterManager({
                 </h3>
               </div>
               {selectedCluster ? (
-                <p className="text-sm text-slate-500">{selectedCluster.fallbackCount} fallback alamat</p>
+                <div className="text-right text-sm text-slate-500">
+                  <p>{selectedCluster.fallbackCount} fallback alamat</p>
+                  <p className="mt-1 font-medium text-slate-700">
+                    {CLUSTER_MODE_LABELS[clusterMode]}
+                  </p>
+                </div>
               ) : null}
             </div>
 
