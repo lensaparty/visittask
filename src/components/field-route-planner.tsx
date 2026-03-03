@@ -27,6 +27,21 @@ type UserPosition = {
   lon: number;
 };
 
+type AssetSummaryRow = {
+  typeOutlet: string;
+  visualPposm: string;
+  brand: string;
+  ukuran: string;
+  outletCount: number;
+  totalSunscreen: number;
+};
+
+type GroupSizeSummaryRow = {
+  group: string;
+  sizes: Record<string, number>;
+  total: number;
+};
+
 function normalizeRouteMessage(message: string) {
   const normalizedMessage = message.toLowerCase();
 
@@ -105,6 +120,11 @@ function buildNearestRoute(
   return ordered;
 }
 
+function normalizeLabel(value: string | null | undefined, fallback: string) {
+  const normalized = value?.trim();
+  return normalized && normalized.length > 0 ? normalized : fallback;
+}
+
 export function FieldRoutePlanner({
   assignments,
 }: {
@@ -154,6 +174,66 @@ export function FieldRoutePlanner({
   const plannedRoute = useMemo(
     () => buildNearestRoute(assignments, userPosition),
     [assignments, userPosition],
+  );
+  const assetSummaryRows = useMemo<AssetSummaryRow[]>(() => {
+    const grouped = new Map<string, AssetSummaryRow>();
+
+    for (const assignment of plannedRoute) {
+      const typeOutlet = normalizeLabel(assignment.typeOutlet, "-");
+      const visualPposm = normalizeLabel(assignment.visualPposm, "-");
+      const brand = normalizeLabel(assignment.brand, "-");
+      const ukuran = normalizeLabel(assignment.ukuran, "-");
+      const key = [typeOutlet, visualPposm, brand, ukuran].join("|");
+      const current = grouped.get(key) ?? {
+        typeOutlet,
+        visualPposm,
+        brand,
+        ukuran,
+        outletCount: 0,
+        totalSunscreen: 0,
+      };
+
+      current.outletCount += 1;
+      current.totalSunscreen += assignment.jumlahSunscreen ?? 0;
+      grouped.set(key, current);
+    }
+
+    return [...grouped.values()].sort((left, right) =>
+      [left.typeOutlet, left.visualPposm, left.brand, left.ukuran].join("|").localeCompare(
+        [right.typeOutlet, right.visualPposm, right.brand, right.ukuran].join("|"),
+      ),
+    );
+  }, [plannedRoute]);
+  const ukuranColumns = useMemo(
+    () =>
+      [
+        ...new Set(plannedRoute.map((assignment) => normalizeLabel(assignment.ukuran, "-"))),
+      ].sort((left, right) => left.localeCompare(right)),
+    [plannedRoute],
+  );
+  const groupSizeSummary = useMemo<GroupSizeSummaryRow[]>(() => {
+    const grouped = new Map<string, GroupSizeSummaryRow>();
+
+    for (const assignment of plannedRoute) {
+      const group = normalizeLabel(assignment.territoryGroup, "(blank)");
+      const ukuran = normalizeLabel(assignment.ukuran, "-");
+      const current = grouped.get(group) ?? {
+        group,
+        sizes: {},
+        total: 0,
+      };
+      const sunscreen = assignment.jumlahSunscreen ?? 0;
+
+      current.sizes[ukuran] = (current.sizes[ukuran] ?? 0) + sunscreen;
+      current.total += sunscreen;
+      grouped.set(group, current);
+    }
+
+    return [...grouped.values()].sort((left, right) => left.group.localeCompare(right.group));
+  }, [plannedRoute]);
+  const grandTotalSunscreen = useMemo(
+    () => plannedRoute.reduce((total, assignment) => total + (assignment.jumlahSunscreen ?? 0), 0),
+    [plannedRoute],
   );
 
   const routeStops = plannedRoute.map((assignment) => ({
@@ -226,6 +306,128 @@ export function FieldRoutePlanner({
         trackDevice={false}
         userPosition={userPosition}
       />
+
+      <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
+        <div className="mb-5">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
+            Asset Summary
+          </p>
+          <h2 className="text-2xl font-semibold text-slate-900">
+            Ringkasan asset yang harus dibawa
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Rekap ini mengikuti outlet yang sudah di-assign, jadi field force bisa menyiapkan
+            asset pemasangan sebelum mulai rute.
+          </p>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Total Outlet
+            </p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">{plannedRoute.length}</p>
+          </div>
+          <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-500">
+              Total Sunscreen
+            </p>
+            <p className="mt-1 text-lg font-semibold text-emerald-900">{grandTotalSunscreen}</p>
+          </div>
+          <div className="rounded-2xl bg-cyan-50 px-4 py-3 text-sm text-cyan-700">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-500">
+              Kombinasi Asset
+            </p>
+            <p className="mt-1 text-lg font-semibold text-cyan-900">{assetSummaryRows.length}</p>
+          </div>
+        </div>
+
+        <div className="mt-5 space-y-5">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Detail Kebutuhan per Type / Visual / Brand / Ukuran
+            </p>
+            <div className="mt-3 overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <thead className="bg-slate-100 text-left text-slate-600">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Type Outlet</th>
+                    <th className="px-4 py-3 font-semibold">Visual PPOSM</th>
+                    <th className="px-4 py-3 font-semibold">Brand</th>
+                    <th className="px-4 py-3 font-semibold">Ukuran</th>
+                    <th className="px-4 py-3 font-semibold">Jumlah Outlet</th>
+                    <th className="px-4 py-3 font-semibold">Jumlah Sunscreen</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white text-slate-700">
+                  {assetSummaryRows.map((row) => (
+                    <tr key={[row.typeOutlet, row.visualPposm, row.brand, row.ukuran].join("|")}>
+                      <td className="px-4 py-3">{row.typeOutlet}</td>
+                      <td className="px-4 py-3">{row.visualPposm}</td>
+                      <td className="px-4 py-3">{row.brand}</td>
+                      <td className="px-4 py-3">{row.ukuran}</td>
+                      <td className="px-4 py-3 font-semibold">{row.outletCount}</td>
+                      <td className="px-4 py-3 font-semibold text-cyan-700">
+                        {row.totalSunscreen}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Rekap Group x Ukuran
+            </p>
+            <div className="mt-3 overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <thead className="bg-slate-100 text-left text-slate-600">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Group</th>
+                    {ukuranColumns.map((ukuran) => (
+                      <th className="px-4 py-3 font-semibold" key={ukuran}>
+                        {ukuran}
+                      </th>
+                    ))}
+                    <th className="px-4 py-3 font-semibold">Grand Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white text-slate-700">
+                  {groupSizeSummary.map((row) => (
+                    <tr key={row.group}>
+                      <td className="px-4 py-3 font-semibold">{row.group}</td>
+                      {ukuranColumns.map((ukuran) => (
+                        <td className="px-4 py-3" key={`${row.group}-${ukuran}`}>
+                          {row.sizes[ukuran] ?? 0}
+                        </td>
+                      ))}
+                      <td className="px-4 py-3 font-semibold text-cyan-700">{row.total}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-slate-50 text-slate-700">
+                  <tr>
+                    <td className="px-4 py-3 font-semibold">Grand Total</td>
+                    {ukuranColumns.map((ukuran) => (
+                      <td className="px-4 py-3 font-semibold" key={`grand-${ukuran}`}>
+                        {groupSizeSummary.reduce(
+                          (total, row) => total + (row.sizes[ukuran] ?? 0),
+                          0,
+                        )}
+                      </td>
+                    ))}
+                    <td className="px-4 py-3 font-semibold text-cyan-700">
+                      {grandTotalSunscreen}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
         <div className="mb-5">
