@@ -249,6 +249,7 @@ export function OutletCatalogManager({
   const [subdistrictFilter, setSubdistrictFilter] = useState("");
   const [territoryFilter, setTerritoryFilter] = useState("");
   const [groupFilter, setGroupFilter] = useState("");
+  const [scheduleFilter, setScheduleFilter] = useState<ScheduleDay | "">("");
   const [sortBy, setSortBy] = useState<"day" | "address" | "code" | "territory" | "group">("day");
   const [selectedUserId, setSelectedUserId] = useState("");
   const [savedAssignedCodes, setSavedAssignedCodes] = useState<string[]>([]);
@@ -311,6 +312,14 @@ export function OutletCatalogManager({
     }
 
     if (groupFilter && (outlet.territoryGroup ?? "") !== groupFilter) {
+      return false;
+    }
+
+    if (
+      scheduleFilter &&
+      outlet.oddScheduleDay !== scheduleFilter &&
+      outlet.evenScheduleDay !== scheduleFilter
+    ) {
       return false;
     }
 
@@ -744,7 +753,7 @@ export function OutletCatalogManager({
           />
         </label>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <label className="block space-y-2 text-sm font-medium text-slate-700">
             <span>Filter Kabupaten</span>
             <select
@@ -817,6 +826,25 @@ export function OutletCatalogManager({
               {groupOptions.map((option) => (
                 <option key={option} value={option}>
                   {option}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block space-y-2 text-sm font-medium text-slate-700">
+            <span>Filter Hari Jadwal</span>
+            <select
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => {
+                setScheduleFilter((event.target.value as ScheduleDay | "") ?? "");
+                setCatalogPage(1);
+              }}
+              value={scheduleFilter}
+            >
+              <option value="">Semua Hari</option>
+              {Object.entries(SCHEDULE_DAY_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
                 </option>
               ))}
             </select>
