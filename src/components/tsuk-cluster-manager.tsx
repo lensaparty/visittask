@@ -1,9 +1,15 @@
 "use client";
 
 import { ScheduleDay } from "@prisma/client";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { AssignmentPreviewMap } from "@/components/assignment-preview-map";
 import { haversineDistanceMeters } from "@/lib/geo";
+
+type TsukAssignableUser = {
+  id: string;
+  name: string;
+  email: string;
+};
 
 type TsukOutletView = {
   id: string;
@@ -35,6 +41,22 @@ type ClusterGroup = {
   color: string;
   outlets: ClusteredOutlet[];
   fallbackCount: number;
+};
+
+type AssignmentSummary = {
+  kodeToko: string;
+  active: boolean;
+};
+
+type AssignmentListResponse = {
+  assignments?: AssignmentSummary[];
+  message?: string;
+};
+
+type BulkAssignmentResult = {
+  assignedCount: number;
+  missingOutletCodes: string[];
+  message?: string;
 };
 
 const CLUSTER_SIZE = 35;
@@ -353,8 +375,10 @@ function buildTsukClusters(
 
 export function TsukClusterManager({
   outlets,
+  users,
 }: {
   outlets: TsukOutletView[];
+  users: TsukAssignableUser[];
 }) {
   const [query, setQuery] = useState("");
   const [regencyFilter, setRegencyFilter] = useState("");
@@ -366,7 +390,12 @@ export function TsukClusterManager({
   const [officeLatInput, setOfficeLatInput] = useState("");
   const [officeLonInput, setOfficeLonInput] = useState("");
   const [selectedClusterIndex, setSelectedClusterIndex] = useState(0);
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [assignError, setAssignError] = useState<string | null>(null);
+  const [assignFeedback, setAssignFeedback] = useState<string | null>(null);
+  const [isAssignPending, startAssignTransition] = useTransition();
   const normalizedQuery = query.trim().toLowerCase();
+  const selectedUser = users.find((user) => user.id === selectedUserId) ?? null;
 
   const regencyOptions = [
     ...new Set(outlets.map((outlet) => outlet.regency ?? "").filter((value) => value.length > 0)),
@@ -509,6 +538,79 @@ export function TsukClusterManager({
       }))
     : [];
 
+  function handleAssignSelectedGroup() {
+    if (!selectedUser) {
+      setAssignError("Pilih field force dulu sebelum assign grup TSUK.");
+      setAssignFeedback(null);
+      return;
+    }
+
+    if (!selectedCluster) {
+      setAssignError("Pilih grup TSUK dulu sebelum assign.");
+      setAssignFeedback(null);
+      return;
+    }
+
+    startAssignTransition(() => {
+      void (async () => {
+        try {
+          setAssignError(null);
+          setAssignFeedback(null);
+
+          const currentResponse = await fetch(
+            `/api/admin/assignments?userId=${encodeURIComponent(selectedUser.id)}`,
+          );
+          const currentPayload = (await currentResponse.json().catch(() => ({}))) as AssignmentListResponse;
+
+          if (!currentResponse.ok) {
+            setAssignError(currentPayload.message ?? "Unable to load current assignments.");
+            return;
+          }
+
+          const currentActiveCodes = (currentPayload.assignments ?? [])
+            .filter((assignment) => assignment.active)
+            .map((assignment) => assignment.kodeToko);
+          const mergedCodes = Array.from(
+            new Set([
+              ...currentActiveCodes,
+              ...selectedCluster.outlets.map((outlet) => outlet.storeCode),
+            ]),
+          );
+
+          const saveResponse = await fetch("/api/admin/assignments/bulk", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userEmail: selectedUser.email,
+              outletCodes: mergedCodes,
+            }),
+          });
+          const savePayload = (await saveResponse.json().catch(() => ({}))) as BulkAssignmentResult;
+
+          if (!saveResponse.ok) {
+            setAssignError(savePayload.message ?? "Unable to assign TSUK group.");
+            return;
+          }
+
+          const missingText =
+            savePayload.missingOutletCodes.length > 0
+              ? ` Missing: ${savePayload.missingOutletCodes.join(", ")}.`
+              : "";
+
+          setAssignFeedback(
+            `${selectedCluster.label} ditambahkan ke ${selectedUser.name}. Total assignment aktif sekarang ${savePayload.assignedCount} outlet.${missingText}`,
+          );
+        } catch (error) {
+          setAssignError(
+            error instanceof Error ? error.message : "Unable to assign TSUK group.",
+          );
+        }
+      })();
+    });
+  }
+
   return (
     <div className="space-y-6">
       <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
@@ -642,6 +744,46 @@ export function TsukClusterManager({
           </label>
         </div>
 
+        <div className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <label className="block space-y-2 text-sm font-medium text-slate-700">
+            <span>Field Force Tujuan</span>
+            <select
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => {
+                setSelectedUserId(event.target.value);
+                setAssignError(null);
+                setAssignFeedback(null);
+              }}
+              value={selectedUserId}
+            >
+              {users.length > 0 ? (
+                <option value="">Pilih field force dulu</option>
+              ) : null}
+              {users.length === 0 ? (
+                <option value="">Belum ada user field force</option>
+              ) : null}
+              {users.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.name} ({user.email})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            className="rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm font-semibold text-cyan-800 transition hover:border-cyan-300 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
+            disabled={isAssignPending || !selectedUser || !selectedCluster}
+            onClick={handleAssignSelectedGroup}
+            type="button"
+          >
+            {isAssignPending
+              ? "Assigning..."
+              : selectedCluster
+                ? `Assign ${selectedCluster.label}`
+                : "Assign Grup TSUK"}
+          </button>
+        </div>
+
         <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <label className="block space-y-2 text-sm font-medium text-slate-700">
             <span>Titik Kantor Lat</span>
@@ -674,6 +816,18 @@ export function TsukClusterManager({
             <p className="mt-1 font-medium text-slate-900">{totalFallbackCount}</p>
           </div>
         </div>
+
+        {assignError ? (
+          <p className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {assignError}
+          </p>
+        ) : null}
+
+        {assignFeedback ? (
+          <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {assignFeedback}
+          </p>
+        ) : null}
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[0.38fr_0.62fr]">

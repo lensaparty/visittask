@@ -7,32 +7,47 @@ import { getSupervisorFallbackByDistrict } from "@/lib/supervisor-fallback";
 export default async function AdminTsukPage() {
   await requireUser(UserRole.SUPERVISOR);
 
-  const outletRows = await prisma.outlet.findMany({
-    select: {
-      id: true,
-      storeCode: true,
-      name: true,
-      address: true,
-      subdistrict: true,
-      regency: true,
-      district: true,
-      territory: true,
-      territoryGroup: true,
-      oddScheduleDay: true,
-      evenScheduleDay: true,
-      supervisorPhone: true,
-      latitude: true,
-      longitude: true,
-      supervisor: {
-        select: {
-          name: true,
+  const [users, outletRows] = await Promise.all([
+    prisma.user.findMany({
+      where: {
+        role: UserRole.FIELD_FORCE,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      },
+      orderBy: {
+        name: "asc",
+      },
+    }),
+    prisma.outlet.findMany({
+      select: {
+        id: true,
+        storeCode: true,
+        name: true,
+        address: true,
+        subdistrict: true,
+        regency: true,
+        district: true,
+        territory: true,
+        territoryGroup: true,
+        oddScheduleDay: true,
+        evenScheduleDay: true,
+        supervisorPhone: true,
+        latitude: true,
+        longitude: true,
+        supervisor: {
+          select: {
+            name: true,
+          },
         },
       },
-    },
-    orderBy: {
-      storeCode: "asc",
-    },
-  });
+      orderBy: {
+        storeCode: "asc",
+      },
+    }),
+  ]);
 
   const outlets = outletRows.map((outlet) => ({
     id: outlet.id,
@@ -68,7 +83,7 @@ export default async function AdminTsukPage() {
         </p>
       </section>
 
-      <TsukClusterManager outlets={outlets} />
+      <TsukClusterManager outlets={outlets} users={users} />
     </main>
   );
 }

@@ -1,8 +1,6 @@
 "use client";
 
 import { ScheduleDay } from "@prisma/client";
-import { AssignmentPreviewMap } from "@/components/assignment-preview-map";
-import { haversineDistanceMeters } from "@/lib/geo";
 import { useDeferredValue, useEffect, useState, useTransition } from "react";
 
 type CatalogAssignableUser = {
@@ -77,12 +75,6 @@ function formatCoordinate(value: number) {
 
 function formatScheduleDay(day: ScheduleDay | null) {
   return day ? SCHEDULE_DAY_LABELS[day] : "-";
-}
-
-function parseCoordinateInput(value: string) {
-  const parsed = Number(value.trim());
-
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function formatLocalDate(date: Date) {
@@ -262,8 +254,6 @@ export function OutletCatalogManager({
   const [savedAssignedCodes, setSavedAssignedCodes] = useState<string[]>([]);
   const [draftAssignedCodes, setDraftAssignedCodes] = useState<string[]>([]);
   const [showDraftedOutlets, setShowDraftedOutlets] = useState(false);
-  const [officeLatInput, setOfficeLatInput] = useState("");
-  const [officeLonInput, setOfficeLonInput] = useState("");
   const [catalogPage, setCatalogPage] = useState(1);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [assignFeedback, setAssignFeedback] = useState<string | null>(null);
@@ -345,54 +335,12 @@ export function OutletCatalogManager({
     (outlet) => !draftAssignedCodeSet.has(outlet.storeCode),
   );
   const catalogOutlets = showDraftedOutlets ? sortedOutlets : availableOutlets;
-  const officePosition =
-    parseCoordinateInput(officeLatInput) != null && parseCoordinateInput(officeLonInput) != null
-      ? {
-          lat: parseCoordinateInput(officeLatInput) as number,
-          lon: parseCoordinateInput(officeLonInput) as number,
-        }
-      : null;
   const totalCatalogPages = Math.max(1, Math.ceil(catalogOutlets.length / CATALOG_PAGE_SIZE));
   const safeCatalogPage = Math.min(catalogPage, totalCatalogPages);
   const visibleOutlets = catalogOutlets.slice(
     (safeCatalogPage - 1) * CATALOG_PAGE_SIZE,
     safeCatalogPage * CATALOG_PAGE_SIZE,
   );
-  const previewOutlets = (officePosition
-    ? [...visibleOutlets].sort((left, right) => {
-        const leftDistance = haversineDistanceMeters(
-          officePosition.lat,
-          officePosition.lon,
-          left.latitude,
-          left.longitude,
-        );
-        const rightDistance = haversineDistanceMeters(
-          officePosition.lat,
-          officePosition.lon,
-          right.latitude,
-          right.longitude,
-        );
-
-        return leftDistance - rightDistance;
-      })
-    : visibleOutlets
-  ).map((outlet, index) => ({
-    kodeToko: outlet.storeCode,
-    namaToko: outlet.name,
-    alamat: outlet.address,
-    lat: outlet.latitude,
-    lon: outlet.longitude,
-    group: outlet.territoryGroup,
-    order: index + 1,
-    distanceFromOfficeM: officePosition
-      ? haversineDistanceMeters(
-          officePosition.lat,
-          officePosition.lon,
-          outlet.latitude,
-          outlet.longitude,
-        )
-      : null,
-  }));
   const pageNumbers = Array.from(
     new Set([
       1,
@@ -888,56 +836,6 @@ export function OutletCatalogManager({
                   : "Outlet yang sudah di-add disembunyikan dari daftar pilihan."}
             </p>
           </div>
-        </div>
-      </section>
-
-      <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
-              Peta Outlet
-            </p>
-            <h3 className="mt-2 text-xl font-semibold text-slate-900">
-              Sebaran hasil filter di peta
-            </h3>
-          </div>
-          <p className="text-sm text-slate-500">
-            {visibleOutlets.length} outlet di halaman ini tampil di peta.
-          </p>
-        </div>
-
-        <div className="mt-4 grid gap-3 lg:grid-cols-2">
-          <label className="block space-y-2 text-sm font-medium text-slate-700">
-            <span>Titik Kantor Lat</span>
-            <input
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-              onChange={(event) => setOfficeLatInput(event.target.value)}
-              placeholder="-6.800000"
-              value={officeLatInput}
-            />
-          </label>
-          <label className="block space-y-2 text-sm font-medium text-slate-700">
-            <span>Titik Kantor Lon</span>
-            <input
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-              onChange={(event) => setOfficeLonInput(event.target.value)}
-              placeholder="107.100000"
-              value={officeLonInput}
-            />
-          </label>
-        </div>
-
-        <div className="mt-4">
-          <AssignmentPreviewMap
-            emptyText="Belum ada outlet yang cocok untuk dipreview di peta."
-            helperText={
-              officePosition
-                ? "Warna marker mengikuti group. Nomor marker disusun dari outlet terdekat ke terjauh berdasarkan titik kantor."
-                : "Warna marker mengikuti group. Isi titik kantor agar nomor marker diurutkan dari kantor ke outlet terjauh."
-            }
-            officePosition={officePosition}
-            outlets={previewOutlets}
-          />
         </div>
       </section>
 
