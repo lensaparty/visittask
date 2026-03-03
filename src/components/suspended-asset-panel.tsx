@@ -19,6 +19,7 @@ type SuspendedAssetAssignment = {
 
 type ReactivateResponse = {
   message?: string;
+  reactivatedCount?: number;
 };
 
 function formatSuspendedAt(value: string) {
@@ -43,27 +44,64 @@ export function SuspendedAssetPanel({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingAssignmentId, setPendingAssignmentId] = useState<string | null>(null);
+  const [visualFilter, setVisualFilter] = useState("");
+  const [brandFilter, setBrandFilter] = useState("");
+  const [sizeFilter, setSizeFilter] = useState("");
   const [, startTransition] = useTransition();
   const hasAssignments = assignments.length > 0;
-  const visibleAssignments = useMemo(() => assignments.slice(0, 12), [assignments]);
+  const visualOptions = useMemo(
+    () =>
+      [...new Set(assignments.map((assignment) => assignment.visualPposm?.trim() || "-"))].sort(
+        (left, right) => left.localeCompare(right),
+      ),
+    [assignments],
+  );
+  const brandOptions = useMemo(
+    () =>
+      [...new Set(assignments.map((assignment) => assignment.brand?.trim() || "-"))].sort(
+        (left, right) => left.localeCompare(right),
+      ),
+    [assignments],
+  );
+  const sizeOptions = useMemo(
+    () =>
+      [...new Set(assignments.map((assignment) => assignment.ukuran?.trim() || "-"))].sort(
+        (left, right) => left.localeCompare(right),
+      ),
+    [assignments],
+  );
+  const filteredAssignments = useMemo(
+    () =>
+      assignments.filter(
+        (assignment) =>
+          (!visualFilter || (assignment.visualPposm?.trim() || "-") === visualFilter) &&
+          (!brandFilter || (assignment.brand?.trim() || "-") === brandFilter) &&
+          (!sizeFilter || (assignment.ukuran?.trim() || "-") === sizeFilter),
+      ),
+    [assignments, brandFilter, sizeFilter, visualFilter],
+  );
+  const visibleAssignments = useMemo(
+    () => filteredAssignments.slice(0, 12),
+    [filteredAssignments],
+  );
   const summary = useMemo(
     () => ({
-      totalSunscreen: assignments.reduce(
+      totalSunscreen: filteredAssignments.reduce(
         (total, assignment) => total + (assignment.jumlahSunscreen ?? 0),
         0,
       ),
-      totalOutlets: assignments.length,
+      totalOutlets: filteredAssignments.length,
     }),
-    [assignments],
+    [filteredAssignments],
   );
 
   async function handleExportWorkbook() {
-    if (!hasAssignments) {
+    if (!hasAssignments || filteredAssignments.length === 0) {
       return;
     }
 
     const { utils, writeFile } = await import("xlsx");
-    const rows = assignments.map((assignment) => ({
+    const rows = filteredAssignments.map((assignment) => ({
       "Tanggal Tangguh": formatSuspendedAt(assignment.suspendedAt),
       "Field Force": assignment.fieldForceName,
       Email: assignment.fieldForceEmail,
@@ -82,10 +120,18 @@ export function SuspendedAssetPanel({
     writeFile(workbook, "tangguhan-asset.xlsx");
   }
 
-  function handleReactivate(assignmentId: string) {
+  function handleReactivate(assignmentIds: string[]) {
     setFeedback(null);
     setError(null);
-    setPendingAssignmentId(assignmentId);
+
+    if (assignmentIds.length === 0) {
+      setError("Tidak ada data tangguhan yang cocok untuk diaktifkan.");
+      return;
+    }
+
+    setPendingAssignmentId(
+      assignmentIds.length === 1 ? assignmentIds[0] : "__bulk__",
+    );
 
     startTransition(() => {
       void (async () => {
@@ -96,7 +142,9 @@ export function SuspendedAssetPanel({
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              assignmentId,
+              ...(assignmentIds.length === 1
+                ? { assignmentId: assignmentIds[0] }
+                : { assignmentIds }),
             }),
           });
           const payload = (await response.json().catch(() => ({}))) as ReactivateResponse;
@@ -137,7 +185,7 @@ export function SuspendedAssetPanel({
         </div>
         <button
           className="inline-flex rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={!hasAssignments}
+          disabled={!hasAssignments || filteredAssignments.length === 0}
           onClick={handleExportWorkbook}
           type="button"
         >
@@ -161,6 +209,89 @@ export function SuspendedAssetPanel({
           </p>
         </div>
       </div>
+
+      {hasAssignments ? (
+        <div className="mb-5 rounded-2xl bg-slate-100 px-4 py-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="block space-y-2 text-sm font-medium text-slate-700">
+              <span>Visual PPOSM</span>
+              <select
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+                onChange={(event) => setVisualFilter(event.target.value)}
+                value={visualFilter}
+              >
+                <option value="">Semua Visual</option>
+                {visualOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block space-y-2 text-sm font-medium text-slate-700">
+              <span>Brand</span>
+              <select
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+                onChange={(event) => setBrandFilter(event.target.value)}
+                value={brandFilter}
+              >
+                <option value="">Semua Brand</option>
+                {brandOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block space-y-2 text-sm font-medium text-slate-700">
+              <span>Ukuran</span>
+              <select
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+                onChange={(event) => setSizeFilter(event.target.value)}
+                value={sizeFilter}
+              >
+                <option value="">Semua Ukuran</option>
+                {sizeOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-slate-600">
+              Hasil filter:{" "}
+              <span className="font-semibold text-slate-900">{filteredAssignments.length}</span>{" "}
+              data tangguhan dari {assignments.length}.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
+                onClick={() => {
+                  setVisualFilter("");
+                  setBrandFilter("");
+                  setSizeFilter("");
+                  setFeedback(null);
+                  setError(null);
+                }}
+                type="button"
+              >
+                Reset Filter
+              </button>
+              <button
+                className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:border-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={pendingAssignmentId !== null || filteredAssignments.length === 0}
+                onClick={() => handleReactivate(filteredAssignments.map((assignment) => assignment.id))}
+                type="button"
+              >
+                {pendingAssignmentId === "__bulk__" ? "Mengaktifkan..." : "Aktifkan Semua"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {error ? (
         <p className="mb-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>
@@ -198,7 +329,7 @@ export function SuspendedAssetPanel({
                 <button
                   className="inline-flex rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:border-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={pendingAssignmentId !== null}
-                  onClick={() => handleReactivate(assignment.id)}
+                  onClick={() => handleReactivate([assignment.id])}
                   type="button"
                 >
                   {pendingAssignmentId === assignment.id ? "Mengaktifkan..." : "Aktifkan Lagi"}
@@ -209,10 +340,10 @@ export function SuspendedAssetPanel({
         )}
       </div>
 
-      {assignments.length > visibleAssignments.length ? (
+      {filteredAssignments.length > visibleAssignments.length ? (
         <p className="mt-4 text-sm text-slate-500">
-          Menampilkan {visibleAssignments.length} dari {assignments.length} data tangguhan terbaru.
-          Export Excel tetap memuat semua data.
+          Menampilkan {visibleAssignments.length} dari {filteredAssignments.length} data tangguhan
+          hasil filter. Export Excel mengikuti filter yang sedang aktif.
         </p>
       ) : null}
     </section>

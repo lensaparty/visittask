@@ -4,9 +4,15 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 
-const reactivateSchema = z.object({
-  assignmentId: z.string().trim().min(1),
-});
+const reactivateSchema = z
+  .object({
+    assignmentId: z.string().trim().min(1).optional(),
+    assignmentIds: z.array(z.string().trim().min(1)).min(1).optional(),
+  })
+  .refine(
+    (value) => Boolean(value.assignmentId || value.assignmentIds?.length),
+    "Provide at least one assignment id.",
+  );
 
 export async function POST(request: Request) {
   const currentUser = await getCurrentUser();
@@ -24,14 +30,23 @@ export async function POST(request: Request) {
 
   if (!parsed.success) {
     return NextResponse.json(
-      { message: "Provide `assignmentId`." },
+      { message: "Provide `assignmentId` or `assignmentIds`." },
       { status: 400 },
     );
   }
 
-  const assignment = await prisma.assignment.findUnique({
+  const assignmentIds = [
+    ...(parsed.data.assignmentId ? [parsed.data.assignmentId] : []),
+    ...(parsed.data.assignmentIds ?? []),
+  ];
+
+  const uniqueAssignmentIds = [...new Set(assignmentIds)];
+
+  const assignments = await prisma.assignment.findMany({
     where: {
-      id: parsed.data.assignmentId,
+      id: {
+        in: uniqueAssignmentIds,
+      },
     },
     include: {
       user: {
@@ -51,27 +66,29 @@ export async function POST(request: Request) {
     },
   });
 
-  if (!assignment) {
-    return NextResponse.json({ message: "Assignment not found." }, { status: 404 });
+  if (assignments.length !== uniqueAssignmentIds.length) {
+    return NextResponse.json({ message: "One or more assignments were not found." }, { status: 404 });
   }
 
-  if (assignment.user.role !== UserRole.FIELD_FORCE) {
+  if (assignments.some((assignment) => assignment.user.role !== UserRole.FIELD_FORCE)) {
     return NextResponse.json(
       { message: "Only field force assignments can be reactivated here." },
       { status: 400 },
     );
   }
 
-  if (assignment.active) {
+  if (assignments.some((assignment) => assignment.active)) {
     return NextResponse.json(
-      { message: "Assignment is already active." },
+      { message: "One or more assignments are already active." },
       { status: 400 },
     );
   }
 
-  await prisma.assignment.update({
+  await prisma.assignment.updateMany({
     where: {
-      id: assignment.id,
+      id: {
+        in: uniqueAssignmentIds,
+      },
     },
     data: {
       active: true,
@@ -79,13 +96,17 @@ export async function POST(request: Request) {
   });
 
   return NextResponse.json({
-    message: "Assignment reactivated.",
-    assignment: {
+    message:
+      uniqueAssignmentIds.length === 1
+        ? "Assignment reactivated."
+        : `${uniqueAssignmentIds.length} assignments reactivated.`,
+    reactivatedCount: uniqueAssignmentIds.length,
+    assignments: assignments.map((assignment) => ({
       id: assignment.id,
       userId: assignment.user.id,
       userName: assignment.user.name,
       kodeToko: assignment.outlet.storeCode,
       namaToko: assignment.outlet.name,
-    },
+    })),
   });
 }
