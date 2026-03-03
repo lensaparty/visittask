@@ -51,8 +51,8 @@ export function FieldForceEntryAlert() {
                 berkurang.
               </p>
               <p>
-                Nyalakan saat perjalanan atau kunjungan aktif saja, lalu matikan setelah selesai.
-                Task tetap diselesaikan dengan Check In lalu Check Out.
+                Nyalakan saat perjalanan aktif saja, lalu matikan setelah selesai. Saat GPS aktif,
+                urutan route bisa menyesuaikan outlet terdekat dari posisi kamu.
               </p>
             </div>
           </div>

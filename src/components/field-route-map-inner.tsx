@@ -74,11 +74,17 @@ function RouteMapBounds({
 
 export function FieldRouteMapInner({
   stops,
+  userPosition: externalUserPosition,
+  externalMessage,
+  trackDevice = true,
 }: {
   stops: RouteStop[];
+  userPosition?: UserPosition | null;
+  externalMessage?: string | null;
+  trackDevice?: boolean;
 }) {
-  const [userPosition, setUserPosition] = useState<UserPosition | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [trackedUserPosition, setTrackedUserPosition] = useState<UserPosition | null>(null);
+  const [trackedMessage, setTrackedMessage] = useState<string | null>(null);
   const hasGeolocation = useSyncExternalStore(
     () => () => {},
     () => "geolocation" in navigator,
@@ -89,22 +95,23 @@ export function FieldRouteMapInner({
     () => window.isSecureContext,
     () => false,
   );
+  const shouldTrackDevice = trackDevice && externalUserPosition === undefined;
 
   useEffect(() => {
-    if (!hasGeolocation || !isSecureOrigin) {
+    if (!shouldTrackDevice || !hasGeolocation || !isSecureOrigin) {
       return;
     }
 
     const watchId = navigator.geolocation.watchPosition(
       (position) => {
-        setUserPosition({
+        setTrackedUserPosition({
           lat: position.coords.latitude,
           lon: position.coords.longitude,
         });
-        setMessage(null);
+        setTrackedMessage(null);
       },
       (error) => {
-        setMessage(normalizeMapMessage(error.message));
+        setTrackedMessage(normalizeMapMessage(error.message));
       },
       {
         enableHighAccuracy: true,
@@ -116,7 +123,11 @@ export function FieldRouteMapInner({
     return () => {
       navigator.geolocation.clearWatch(watchId);
     };
-  }, [hasGeolocation, isSecureOrigin]);
+  }, [hasGeolocation, isSecureOrigin, shouldTrackDevice]);
+
+  const userPosition =
+    externalUserPosition === undefined ? trackedUserPosition : externalUserPosition;
+  const message = externalMessage ?? trackedMessage;
 
   const routeLine = [
     ...(userPosition ? [[userPosition.lat, userPosition.lon] as [number, number]] : []),
@@ -180,7 +191,7 @@ export function FieldRouteMapInner({
 
       {message ? (
         <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-700">{message}</p>
-      ) : !isSecureOrigin ? (
+      ) : trackDevice && !isSecureOrigin ? (
         <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-700">
           Peta route tetap tampil, tapi posisi device tidak bisa dibaca karena halaman belum HTTPS.
         </p>

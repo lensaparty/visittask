@@ -11,6 +11,11 @@ type RouteStop = {
   lon: number;
 };
 
+type UserPosition = {
+  lat: number;
+  lon: number;
+};
+
 const FieldRouteMapInner = dynamic(
   () =>
     import("./field-route-map-inner").then((module) => module.FieldRouteMapInner),
@@ -31,12 +36,25 @@ const FieldRouteMapInner = dynamic(
 
 export function FieldRouteMap({
   stops,
+  userPosition,
+  externalMessage,
+  trackDevice = true,
 }: {
   stops: RouteStop[];
+  userPosition?: UserPosition | null;
+  externalMessage?: string | null;
+  trackDevice?: boolean;
 }) {
   if (stops.length === 0) {
     return null;
   }
 
-  return <FieldRouteMapInner stops={stops} />;
+  return (
+    <FieldRouteMapInner
+      externalMessage={externalMessage}
+      stops={stops}
+      trackDevice={trackDevice}
+      userPosition={userPosition}
+    />
+  );
 }
