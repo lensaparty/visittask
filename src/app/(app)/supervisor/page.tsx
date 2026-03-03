@@ -1,5 +1,6 @@
 import { TaskStatus, UserRole } from "@prisma/client";
 import { SupervisorTools } from "@/components/supervisor-tools";
+import { SuspendedAssetPanel } from "@/components/suspended-asset-panel";
 import { prisma } from "@/lib/prisma";
 import { shouldGenerateTaskForDate, startOfUtcDay } from "@/lib/schedule";
 import { requireUser } from "@/lib/session";
@@ -77,6 +78,7 @@ export default async function SupervisorPage() {
           select: {
             name: true,
             storeCode: true,
+            typeOutlet: true,
             visualPposm: true,
             brand: true,
             size: true,
@@ -87,7 +89,6 @@ export default async function SupervisorPage() {
       orderBy: {
         updatedAt: "desc",
       },
-      take: 12,
     }),
     ]);
   const matchingAssignmentCount = activeAssignments.filter((assignment) =>
@@ -97,6 +98,19 @@ export default async function SupervisorPage() {
     (total, item) => total + item._count._all,
     0,
   );
+  const suspendedAssetRows = suspendedAssignments.map((assignment) => ({
+    id: assignment.id,
+    suspendedAt: assignment.updatedAt.toISOString(),
+    fieldForceName: assignment.user.name,
+    fieldForceEmail: assignment.user.email,
+    outletName: assignment.outlet.name,
+    outletCode: assignment.outlet.storeCode,
+    typeOutlet: assignment.outlet.typeOutlet,
+    visualPposm: assignment.outlet.visualPposm,
+    brand: assignment.outlet.brand,
+    ukuran: assignment.outlet.size,
+    jumlahSunscreen: assignment.outlet.sunscreenCount,
+  }));
 
   return (
     <main className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
@@ -196,46 +210,7 @@ export default async function SupervisorPage() {
 
       <aside className="space-y-6">
         <SupervisorTools />
-
-        <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
-          <div className="mb-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">
-              Tangguhan Asset
-            </p>
-            <h2 className="text-2xl font-semibold text-slate-900">
-              Outlet yang di-unassign dari field force
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Saat asset siap, aktifkan lagi dari menu Assign dengan restore assignment.
-            </p>
-          </div>
-          <div className="space-y-4">
-            {suspendedAssignments.length === 0 ? (
-              <p className="text-sm text-slate-500">
-                Belum ada data tangguhan asset.
-              </p>
-            ) : (
-              suspendedAssignments.map((assignment) => (
-                <div
-                  className="rounded-2xl border border-slate-200 px-4 py-4"
-                  key={assignment.id}
-                >
-                  <p className="font-semibold text-slate-900">{assignment.outlet.name}</p>
-                  <p className="text-sm text-slate-600">
-                    {assignment.outlet.storeCode} • {assignment.user.name}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {assignment.outlet.visualPposm ?? "-"} • {assignment.outlet.brand ?? "-"} •{" "}
-                    {assignment.outlet.size ?? "-"}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Jumlah Sunscreen: {assignment.outlet.sunscreenCount ?? 0}
-                  </p>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
+        <SuspendedAssetPanel assignments={suspendedAssetRows} />
 
         <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
           <div className="mb-5">
