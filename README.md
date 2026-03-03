@@ -139,6 +139,12 @@ For Firebase App Hosting deployment, use:
 - [`apphosting.yaml`](/Users/mrwk/Documents/TASK%20TRACKING/apphosting.yaml)
 - [`docs/firebase-app-hosting-deploy.md`](/Users/mrwk/Documents/TASK%20TRACKING/docs/firebase-app-hosting-deploy.md)
 
+## Vercel Deploy
+
+For the fastest MVP deployment path, use:
+
+- [`docs/vercel-deploy.md`](/Users/mrwk/Documents/TASK%20TRACKING/docs/vercel-deploy.md)
+
 ## Integration Notes
 
 If this module will later be merged into an attendance app, use the blueprint here:
