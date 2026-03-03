@@ -709,6 +709,71 @@ export function TsukClusterManager({
     })();
   }
 
+  function handleExportAllGroups() {
+    if (clusters.length === 0) {
+      return;
+    }
+
+    void (async () => {
+      const { utils, writeFile } = await import("xlsx");
+      const workbook = utils.book_new();
+
+      for (const cluster of clusters) {
+        const rows = cluster.outlets.map((outlet) => ({
+          "Mode Cluster": CLUSTER_MODE_LABELS[clusterMode],
+          Grup: cluster.label,
+          Stop: outlet.order,
+          "Kode Toko": outlet.storeCode,
+          "Nama Toko": outlet.name,
+          Alamat: outlet.address,
+          Kecamatan: outlet.subdistrict ?? "-",
+          Kabupaten: outlet.regency ?? "-",
+          Distrik: outlet.district ?? "-",
+          Territory: outlet.territory ?? "-",
+          Group: outlet.territoryGroup ?? "-",
+          "Jadwal Ganjil": formatScheduleDay(outlet.oddScheduleDay),
+          "Jadwal Genap": formatScheduleDay(outlet.evenScheduleDay),
+          Supervisor: outlet.supervisorName ?? "-",
+          "Telp Supervisor": outlet.supervisorPhone ?? "-",
+          Latitude: outlet.latitude,
+          Longitude: outlet.longitude,
+          "Jarak Dari Kantor (m)":
+            outlet.distanceFromOfficeM != null ? Math.round(outlet.distanceFromOfficeM) : "",
+          "Fallback Alamat": outlet.usedAddressFallback ? "Ya" : "Tidak",
+        }));
+
+        const worksheet = utils.json_to_sheet(rows);
+        const sheetName = cluster.label.replace(/\s+/g, "-").slice(0, 31);
+        utils.book_append_sheet(workbook, worksheet, sheetName || `Grup-${cluster.id}`);
+      }
+
+      writeFile(workbook, `tsuk-all-groups-${clusterMode.toLowerCase()}.xlsx`);
+    })();
+  }
+
+  function handleCopySelectedGroupCodes() {
+    if (!selectedCluster || typeof navigator === "undefined" || !navigator.clipboard) {
+      return;
+    }
+
+    const codes = selectedCluster.outlets.map((outlet) => outlet.storeCode).join("\n");
+
+    void navigator.clipboard.writeText(codes).then(
+      () => {
+        setAssignError(null);
+        setAssignFeedback(
+          `Kode toko ${selectedCluster.label} berhasil disalin (${selectedCluster.outlets.length} outlet).`,
+        );
+      },
+      (error: unknown) => {
+        setAssignFeedback(null);
+        setAssignError(
+          error instanceof Error ? error.message : "Unable to copy outlet codes.",
+        );
+      },
+    );
+  }
+
   return (
     <div className="space-y-6">
       <section className="rounded-3xl border border-white/60 bg-white/90 p-5 shadow-lg shadow-slate-900/5 sm:p-6">
@@ -903,6 +968,25 @@ export function TsukClusterManager({
               : selectedCluster
                 ? `Assign ${selectedCluster.label}`
                 : "Assign Grup TSUK"}
+          </button>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-3">
+          <button
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={clusters.length === 0}
+            onClick={handleExportAllGroups}
+            type="button"
+          >
+            Export Semua Grup
+          </button>
+          <button
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={!selectedCluster}
+            onClick={handleCopySelectedGroupCodes}
+            type="button"
+          >
+            Copy Kode Toko Grup
           </button>
         </div>
 
