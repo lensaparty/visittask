@@ -18,6 +18,8 @@ export default async function AdminTsukPage() {
       district: true,
       territory: true,
       territoryGroup: true,
+      oddScheduleDay: true,
+      evenScheduleDay: true,
       supervisorPhone: true,
       latitude: true,
       longitude: true,
@@ -42,6 +44,8 @@ export default async function AdminTsukPage() {
     district: outlet.district,
     territory: outlet.territory,
     territoryGroup: outlet.territoryGroup,
+    oddScheduleDay: outlet.oddScheduleDay,
+    evenScheduleDay: outlet.evenScheduleDay,
     supervisorName:
       outlet.supervisor?.name ?? getSupervisorFallbackByDistrict(outlet.district),
     supervisorPhone: outlet.supervisorPhone,

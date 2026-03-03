@@ -1,5 +1,6 @@
 "use client";
 
+import { ScheduleDay } from "@prisma/client";
 import { useMemo, useState } from "react";
 import { AssignmentPreviewMap } from "@/components/assignment-preview-map";
 import { haversineDistanceMeters } from "@/lib/geo";
@@ -14,6 +15,8 @@ type TsukOutletView = {
   district: string | null;
   territory: string | null;
   territoryGroup: string | null;
+  oddScheduleDay: ScheduleDay | null;
+  evenScheduleDay: ScheduleDay | null;
   supervisorName: string | null;
   supervisorPhone: string | null;
   latitude: number;
@@ -35,6 +38,7 @@ type ClusterGroup = {
 };
 
 const CLUSTER_SIZE = 35;
+const OFFICE_DISTANCE_THRESHOLD_METERS = 250_000;
 const CLUSTER_COLORS = [
   "bg-teal-500",
   "bg-sky-500",
@@ -43,6 +47,15 @@ const CLUSTER_COLORS = [
   "bg-amber-500",
   "bg-emerald-500",
 ];
+const SCHEDULE_DAY_LABELS: Record<ScheduleDay, string> = {
+  [ScheduleDay.SENIN]: "Senin",
+  [ScheduleDay.SELASA]: "Selasa",
+  [ScheduleDay.RABU]: "Rabu",
+  [ScheduleDay.KAMIS]: "Kamis",
+  [ScheduleDay.JUMAT]: "Jumat",
+  [ScheduleDay.SABTU]: "Sabtu",
+  [ScheduleDay.MINGGU]: "Minggu",
+};
 
 function parseCoordinateInput(value: string) {
   const parsed = Number(value.trim());
@@ -68,6 +81,60 @@ function hasUsableCoordinates(outlet: TsukOutletView) {
   }
 
   return true;
+}
+
+function hasReliableCoordinates(
+  outlet: TsukOutletView,
+  officePosition: { lat: number; lon: number } | null,
+) {
+  if (!hasUsableCoordinates(outlet)) {
+    return false;
+  }
+
+  if (!officePosition) {
+    return true;
+  }
+
+  const distance = haversineDistanceMeters(
+    officePosition.lat,
+    officePosition.lon,
+    outlet.latitude,
+    outlet.longitude,
+  );
+
+  return distance <= OFFICE_DISTANCE_THRESHOLD_METERS;
+}
+
+function matchesScheduleFilter(
+  outlet: TsukOutletView,
+  scheduleParity: "" | "ODD" | "EVEN",
+  scheduleDay: ScheduleDay | "",
+) {
+  if (!scheduleParity && !scheduleDay) {
+    return true;
+  }
+
+  if (scheduleParity === "ODD") {
+    if (!outlet.oddScheduleDay) {
+      return false;
+    }
+
+    return !scheduleDay || outlet.oddScheduleDay === scheduleDay;
+  }
+
+  if (scheduleParity === "EVEN") {
+    if (!outlet.evenScheduleDay) {
+      return false;
+    }
+
+    return !scheduleDay || outlet.evenScheduleDay === scheduleDay;
+  }
+
+  if (!scheduleDay) {
+    return true;
+  }
+
+  return outlet.oddScheduleDay === scheduleDay || outlet.evenScheduleDay === scheduleDay;
 }
 
 function defaultOutletSort(left: TsukOutletView, right: TsukOutletView) {
@@ -143,8 +210,10 @@ function buildTsukClusters(
   outlets: TsukOutletView[],
   officePosition: { lat: number; lon: number } | null,
 ) {
-  const validOutlets = outlets.filter(hasUsableCoordinates);
-  const fallbackOutlets = outlets.filter((outlet) => !hasUsableCoordinates(outlet));
+  const validOutlets = outlets.filter((outlet) => hasReliableCoordinates(outlet, officePosition));
+  const fallbackOutlets = outlets.filter(
+    (outlet) => !hasReliableCoordinates(outlet, officePosition),
+  );
   const remaining = [...validOutlets].sort(defaultOutletSort);
   const rawClusters: Array<{ base: TsukOutletView[]; fallback: TsukOutletView[] }> = [];
 
@@ -261,7 +330,7 @@ function buildTsukClusters(
       ...outlet,
       order: outletIndex + 1,
       distanceFromOfficeM:
-        officePosition && hasUsableCoordinates(outlet)
+        officePosition && hasReliableCoordinates(outlet, officePosition)
           ? haversineDistanceMeters(
               officePosition.lat,
               officePosition.lon,
@@ -269,7 +338,7 @@ function buildTsukClusters(
               outlet.longitude,
             )
           : null,
-      usedAddressFallback: !hasUsableCoordinates(outlet),
+      usedAddressFallback: !hasReliableCoordinates(outlet, officePosition),
     }));
 
     return {
@@ -292,6 +361,8 @@ export function TsukClusterManager({
   const [subdistrictFilter, setSubdistrictFilter] = useState("");
   const [territoryFilter, setTerritoryFilter] = useState("");
   const [groupFilter, setGroupFilter] = useState("");
+  const [scheduleParity, setScheduleParity] = useState<"" | "ODD" | "EVEN">("");
+  const [scheduleDayFilter, setScheduleDayFilter] = useState<ScheduleDay | "">("");
   const [officeLatInput, setOfficeLatInput] = useState("");
   const [officeLonInput, setOfficeLonInput] = useState("");
   const [selectedClusterIndex, setSelectedClusterIndex] = useState(0);
@@ -309,11 +380,43 @@ export function TsukClusterManager({
     ),
   ].sort((left, right) => left.localeCompare(right));
   const territoryOptions = [
-    ...new Set(outlets.map((outlet) => outlet.territory ?? "").filter((value) => value.length > 0)),
+    ...new Set(
+      outlets
+        .filter((outlet) => {
+          if (regencyFilter && (outlet.regency ?? "") !== regencyFilter) {
+            return false;
+          }
+          if (subdistrictFilter && (outlet.subdistrict ?? "") !== subdistrictFilter) {
+            return false;
+          }
+          if (groupFilter && (outlet.territoryGroup ?? "") !== groupFilter) {
+            return false;
+          }
+
+          return matchesScheduleFilter(outlet, scheduleParity, scheduleDayFilter);
+        })
+        .map((outlet) => outlet.territory ?? "")
+        .filter((value) => value.length > 0),
+    ),
   ].sort((left, right) => left.localeCompare(right));
   const groupOptions = [
     ...new Set(
-      outlets.map((outlet) => outlet.territoryGroup ?? "").filter((value) => value.length > 0),
+      outlets
+        .filter((outlet) => {
+          if (regencyFilter && (outlet.regency ?? "") !== regencyFilter) {
+            return false;
+          }
+          if (subdistrictFilter && (outlet.subdistrict ?? "") !== subdistrictFilter) {
+            return false;
+          }
+          if (territoryFilter && (outlet.territory ?? "") !== territoryFilter) {
+            return false;
+          }
+
+          return matchesScheduleFilter(outlet, scheduleParity, scheduleDayFilter);
+        })
+        .map((outlet) => outlet.territoryGroup ?? "")
+        .filter((value) => value.length > 0),
     ),
   ].sort((left, right) => left.localeCompare(right));
 
@@ -332,6 +435,9 @@ export function TsukClusterManager({
         if (groupFilter && (outlet.territoryGroup ?? "") !== groupFilter) {
           return false;
         }
+        if (!matchesScheduleFilter(outlet, scheduleParity, scheduleDayFilter)) {
+          return false;
+        }
         if (!normalizedQuery) {
           return true;
         }
@@ -345,13 +451,24 @@ export function TsukClusterManager({
           outlet.district ?? "",
           outlet.territory ?? "",
           outlet.territoryGroup ?? "",
+          outlet.oddScheduleDay ? SCHEDULE_DAY_LABELS[outlet.oddScheduleDay] : "",
+          outlet.evenScheduleDay ? SCHEDULE_DAY_LABELS[outlet.evenScheduleDay] : "",
           outlet.supervisorName ?? "",
         ]
           .join(" ")
           .toLowerCase()
           .includes(normalizedQuery);
       }),
-    [groupFilter, normalizedQuery, outlets, regencyFilter, subdistrictFilter, territoryFilter],
+    [
+      groupFilter,
+      normalizedQuery,
+      outlets,
+      regencyFilter,
+      scheduleDayFilter,
+      scheduleParity,
+      subdistrictFilter,
+      territoryFilter,
+    ],
   );
 
   const officePosition = useMemo(() => {
@@ -378,7 +495,9 @@ export function TsukClusterManager({
   const totalFallbackCount = clusters.reduce((total, cluster) => total + cluster.fallbackCount, 0);
 
   const selectedClusterPreview = selectedCluster
-    ? selectedCluster.outlets.filter(hasUsableCoordinates).map((outlet) => ({
+    ? selectedCluster.outlets
+        .filter((outlet) => hasReliableCoordinates(outlet, officePosition))
+        .map((outlet) => ({
         kodeToko: outlet.storeCode,
         namaToko: outlet.name,
         alamat: outlet.address,
@@ -423,12 +542,15 @@ export function TsukClusterManager({
           />
         </label>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <label className="block space-y-2 text-sm font-medium text-slate-700">
             <span>Filter Kabupaten</span>
             <select
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
-              onChange={(event) => setRegencyFilter(event.target.value)}
+              onChange={(event) => {
+                setRegencyFilter(event.target.value);
+                setSubdistrictFilter("");
+              }}
               value={regencyFilter}
             >
               <option value="">Semua Kabupaten</option>
@@ -483,6 +605,37 @@ export function TsukClusterManager({
               {groupOptions.map((option) => (
                 <option key={option} value={option}>
                   {option}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block space-y-2 text-sm font-medium text-slate-700">
+            <span>Mode Jadwal</span>
+            <select
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => setScheduleParity(event.target.value as "" | "ODD" | "EVEN")}
+              value={scheduleParity}
+            >
+              <option value="">Semua Jadwal</option>
+              <option value="ODD">Ganjil</option>
+              <option value="EVEN">Genap</option>
+            </select>
+          </label>
+
+          <label className="block space-y-2 text-sm font-medium text-slate-700">
+            <span>Hari Jadwal</span>
+            <select
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) =>
+                setScheduleDayFilter((event.target.value as ScheduleDay | "") ?? "")
+              }
+              value={scheduleDayFilter}
+            >
+              <option value="">Semua Hari</option>
+              {Object.entries(SCHEDULE_DAY_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
                 </option>
               ))}
             </select>
