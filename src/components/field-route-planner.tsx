@@ -42,6 +42,12 @@ type GroupSizeSummaryRow = {
   total: number;
 };
 
+type BrandSummaryRow = {
+  brand: string;
+  outletCount: number;
+  totalSunscreen: number;
+};
+
 function normalizeRouteMessage(message: string) {
   const normalizedMessage = message.toLowerCase();
 
@@ -132,6 +138,7 @@ export function FieldRoutePlanner({
 }) {
   const [userPosition, setUserPosition] = useState<UserPosition | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [hiddenBrands, setHiddenBrands] = useState<string[]>([]);
   const hasGeolocation = useSyncExternalStore(
     () => () => {},
     () => "geolocation" in navigator,
@@ -171,9 +178,34 @@ export function FieldRoutePlanner({
     };
   }, [hasGeolocation, isSecureOrigin]);
 
+  const brandSummaryRows = useMemo<BrandSummaryRow[]>(() => {
+    const grouped = new Map<string, BrandSummaryRow>();
+
+    for (const assignment of assignments) {
+      const brand = normalizeLabel(assignment.brand, "(blank)");
+      const current = grouped.get(brand) ?? {
+        brand,
+        outletCount: 0,
+        totalSunscreen: 0,
+      };
+
+      current.outletCount += 1;
+      current.totalSunscreen += assignment.jumlahSunscreen ?? 0;
+      grouped.set(brand, current);
+    }
+
+    return [...grouped.values()].sort((left, right) => left.brand.localeCompare(right.brand));
+  }, [assignments]);
+  const visibleAssignments = useMemo(
+    () =>
+      assignments.filter(
+        (assignment) => !hiddenBrands.includes(normalizeLabel(assignment.brand, "(blank)")),
+      ),
+    [assignments, hiddenBrands],
+  );
   const plannedRoute = useMemo(
-    () => buildNearestRoute(assignments, userPosition),
-    [assignments, userPosition],
+    () => buildNearestRoute(visibleAssignments, userPosition),
+    [userPosition, visibleAssignments],
   );
   const assetSummaryRows = useMemo<AssetSummaryRow[]>(() => {
     const grouped = new Map<string, AssetSummaryRow>();
@@ -246,6 +278,14 @@ export function FieldRoutePlanner({
   }));
   const firstStop = plannedRoute[0] ?? null;
   const hasUserPosition = userPosition != null;
+
+  function toggleBrandVisibility(brand: string) {
+    setHiddenBrands((current) =>
+      current.includes(brand)
+        ? current.filter((currentBrand) => currentBrand !== brand)
+        : [...current, brand],
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -341,6 +381,60 @@ export function FieldRoutePlanner({
             <p className="mt-1 text-lg font-semibold text-cyan-900">{assetSummaryRows.length}</p>
           </div>
         </div>
+
+        <div className="mt-5 rounded-2xl bg-slate-100 px-4 py-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Filter Brand
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                Hide brand yang asset-nya sedang habis. Route dan daftar outlet di halaman ini
+                akan ikut hilang sementara, lalu bisa di-unhide kapan saja.
+              </p>
+            </div>
+            <button
+              className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={hiddenBrands.length === 0}
+              onClick={() => setHiddenBrands([])}
+              type="button"
+            >
+              Unhide Semua Brand
+            </button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {brandSummaryRows.map((row) => {
+              const isHidden = hiddenBrands.includes(row.brand);
+
+              return (
+                <button
+                  className={`rounded-2xl border px-3 py-2 text-left text-sm transition ${
+                    isHidden
+                      ? "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300"
+                      : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-emerald-300"
+                  }`}
+                  key={row.brand}
+                  onClick={() => toggleBrandVisibility(row.brand)}
+                  type="button"
+                >
+                  <span className="block font-semibold">{row.brand}</span>
+                  <span className="mt-1 block text-xs">
+                    {row.outletCount} outlet • {row.totalSunscreen} sunscreen •{" "}
+                    {isHidden ? "Hidden" : "Active"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {hiddenBrands.length > 0 ? (
+          <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Brand yang sedang di-hide: {hiddenBrands.join(", ")}. Ini hanya mengubah tampilan route
+            di halaman ini, tidak mengubah assignment supervisor.
+          </p>
+        ) : null}
 
         <div className="mt-5 space-y-5">
           <div>
@@ -510,9 +604,9 @@ export function FieldRoutePlanner({
                   <p className="mt-1 text-slate-700">
                     Type: {assignment.typeOutlet ?? "-"}
                   </p>
+                  <p className="mt-1 text-slate-600">Brand: {assignment.brand ?? "-"}</p>
                   <p className="mt-1 text-slate-600">
-                    {assignment.visualPposm ?? "-"} • {assignment.brand ?? "-"} •{" "}
-                    {assignment.ukuran ?? "-"}
+                    {assignment.visualPposm ?? "-"} • {assignment.ukuran ?? "-"}
                   </p>
                 </div>
                 <div className="rounded-2xl bg-slate-50 px-3 py-3">
