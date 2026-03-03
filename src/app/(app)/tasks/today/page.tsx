@@ -1,5 +1,5 @@
-import { TasksTodayPageContent } from "@/components/tasks-today-page";
+import { redirect } from "next/navigation";
 
 export default async function TasksTodayPage() {
-  return <TasksTodayPageContent />;
+  redirect("/route/today");
 }

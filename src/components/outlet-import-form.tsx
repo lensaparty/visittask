@@ -166,11 +166,18 @@ export function OutletImportForm({
       ) : null}
 
       {result ? (
-        <div className="mt-4 space-y-4 rounded-2xl bg-slate-100 px-4 py-4 text-sm text-slate-700">
-          <p>
-            Inserted {result.inserted}, updated {result.updated}, errors{" "}
-            {result.errors.length}.
-          </p>
+        <div className="mt-4 space-y-4 rounded-2xl bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
+          <div className="space-y-1">
+            <p className="font-semibold">Workbook berhasil di-upload.</p>
+            <p>
+              Import selesai: {result.inserted} outlet baru, {result.updated} outlet diperbarui.
+            </p>
+            <p>
+              {result.errors.length === 0
+                ? "Tidak ada error pada baris import."
+                : `Ada ${result.errors.length} baris yang perlu dicek.`}
+            </p>
+          </div>
           {result.errors.length > 0 ? (
             <div className="space-y-2">
               {result.errors.map((error) => (

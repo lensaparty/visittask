@@ -33,14 +33,14 @@ export default async function AppLayout({
                 <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
                   {user.role === UserRole.SUPERVISOR
                     ? "Monitor live activity, import outlets, and manage assignments."
-                    : "Track duty status, open tasks, and complete outlet visits."}
+                    : "Track duty status and follow assigned outlet routes."}
                 </p>
               </div>
 
               <div className="grid w-full grid-cols-2 gap-3 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end lg:self-auto">
                 <Link
                   className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-cyan-300 hover:text-cyan-700 sm:rounded-full"
-                  href={user.role === UserRole.SUPERVISOR ? "/supervisor" : "/tasks/today"}
+                  href={user.role === UserRole.SUPERVISOR ? "/supervisor" : "/route/today"}
                 >
                   Home
                 </Link>

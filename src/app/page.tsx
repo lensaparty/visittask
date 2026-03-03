@@ -9,5 +9,5 @@ export default async function HomePage() {
     redirect("/login");
   }
 
-  redirect(user.role === UserRole.SUPERVISOR ? "/supervisor" : "/tasks/today");
+  redirect(user.role === UserRole.SUPERVISOR ? "/supervisor" : "/route/today");
 }

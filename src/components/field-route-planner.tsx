@@ -163,11 +163,13 @@ export function FieldRoutePlanner({
     lat: assignment.lat,
     lon: assignment.lon,
   }));
+  const firstStop = plannedRoute[0] ?? null;
+  const hasUserPosition = userPosition != null;
 
   return (
     <div className="space-y-6">
       <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
-        {userPosition ? (
+        {hasUserPosition ? (
           <p>
             GPS aktif. Urutan rute sekarang otomatis dimulai dari outlet terdekat ke posisi kamu.
           </p>
@@ -178,6 +180,44 @@ export function FieldRoutePlanner({
           </p>
         )}
       </div>
+
+      {firstStop ? (
+        <div className="rounded-3xl border border-cyan-100 bg-cyan-50 px-4 py-4 shadow-sm shadow-cyan-900/5 sm:px-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">
+                Start Route
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">
+                Mulai dari outlet terdekat: {firstStop.namaToko}
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                {hasUserPosition
+                  ? "Urutan sudah disusun dari lokasi kamu saat ini."
+                  : "Saat GPS belum aktif, tombol ini memakai urutan default dari supervisor."}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <a
+                className="inline-flex rounded-2xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-cyan-500"
+                href={`https://www.google.com/maps/dir/?api=1&destination=${firstStop.lat},${firstStop.lon}`}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Mulai dari outlet terdekat
+              </a>
+              <a
+                className="inline-flex rounded-2xl border border-cyan-200 bg-white px-4 py-2.5 text-sm font-semibold text-cyan-800 transition hover:border-cyan-300"
+                href={`https://waze.com/ul?ll=${firstStop.lat},${firstStop.lon}&navigate=yes`}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Waze
+              </a>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <FieldRouteMap
         externalMessage={message}

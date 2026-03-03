@@ -30,7 +30,7 @@ export async function requireUser(role?: UserRole) {
   }
 
   if (role && user.role !== role) {
-    redirect(user.role === UserRole.SUPERVISOR ? "/supervisor" : "/tasks/today");
+    redirect(user.role === UserRole.SUPERVISOR ? "/supervisor" : "/route/today");
   }
 
   return user;

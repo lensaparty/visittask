@@ -24,7 +24,7 @@ export function RoleNavbar({
 
   const items: NavItem[] =
     role === UserRole.FIELD_FORCE
-      ? [{ href: "/tasks/today", label: "Tasks Today" }]
+      ? [{ href: "/route/today", label: "Route Today" }]
       : [
           { href: "/supervisor", label: "Supervisor" },
           { href: "/admin/import", label: "Import" },
@@ -42,7 +42,8 @@ export function RoleNavbar({
       {items.map((item) => {
         const active =
           pathname === item.href ||
-          (item.href === "/tasks/today" && pathname.startsWith("/tasks")) ||
+          (item.href === "/route/today" &&
+            (pathname.startsWith("/route") || pathname.startsWith("/tasks"))) ||
           (item.href !== "/supervisor" && pathname.startsWith(item.href));
 
         return (

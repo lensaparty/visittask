@@ -75,9 +75,9 @@ export default async function TaskDetailPage({
           <div className="flex flex-wrap gap-2">
             <Link
               className="inline-flex rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600 transition hover:border-cyan-300 hover:text-cyan-700"
-              href="/tasks/today"
+              href="/route/today"
             >
-              Back to Tasks
+              Back to Route
             </Link>
             {nextTask ? (
               <Link

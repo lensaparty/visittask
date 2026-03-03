@@ -7,7 +7,7 @@ export default async function LoginPage() {
   const user = await getCurrentUser();
 
   if (user) {
-    redirect(user.role === UserRole.SUPERVISOR ? "/supervisor" : "/tasks/today");
+    redirect(user.role === UserRole.SUPERVISOR ? "/supervisor" : "/route/today");
   }
 
   return (
@@ -18,11 +18,11 @@ export default async function LoginPage() {
             Field Force Visit Tasks
           </p>
           <h1 className="mt-4 max-w-lg text-3xl font-semibold leading-tight sm:text-4xl">
-            One place for duty tracking, outlet visits, and supervisor oversight.
+            One place for duty tracking, outlet routing, and supervisor oversight.
           </h1>
           <p className="mt-4 max-w-xl text-sm leading-7 text-slate-200 sm:text-base">
             Sign in from a mobile browser to start duty, track live location, and
-            complete check-in and check-out tasks directly at the outlet.
+            follow the nearest assigned route directly in the field.
           </p>
 
           <div className="mt-8 grid gap-3 sm:grid-cols-3">
@@ -36,10 +36,10 @@ export default async function LoginPage() {
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                Visit
+                Route
               </p>
               <p className="mt-2 text-sm text-slate-100">
-                Open today&apos;s outlet tasks and confirm visits on-site.
+                Open today&apos;s assigned outlets and start from the nearest stop.
               </p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-4">
