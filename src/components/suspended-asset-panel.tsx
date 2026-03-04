@@ -155,7 +155,7 @@ export function SuspendedAssetPanel({
     startTransition(() => {
       void (async () => {
         try {
-          const response = await fetch("/api/admin/assignments/reactivate", {
+          const response = await fetch("/api/attendance/field-force/assignments/reactivate", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

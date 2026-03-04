@@ -468,7 +468,7 @@ export function OutletCatalogManager({
           setAssignError(null);
           setAssignFeedback(null);
 
-          const response = await fetch("/api/admin/assignments/bulk", {
+          const response = await fetch("/api/attendance/field-force/assignments/bulk", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -490,7 +490,7 @@ export function OutletCatalogManager({
             `Assignment ${selectedUser.name} diperbarui. Aktif ${payload.assignedCount} outlet.`;
 
           try {
-            const generateResponse = await fetch("/api/tasks/generate", {
+            const generateResponse = await fetch("/api/attendance/field-force/tasks/generate", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",

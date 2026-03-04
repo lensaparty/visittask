@@ -302,7 +302,7 @@ export function FieldRoutePlanner({
           setSuspensionError(null);
           setSuspensionFeedback(null);
 
-          const response = await fetch("/api/field-force/assignments/suspend", {
+          const response = await fetch("/api/attendance/field-force/assignments/suspend", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

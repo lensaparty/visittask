@@ -24,7 +24,7 @@ export function SupervisorTools() {
     startTransition(() => {
       void (async () => {
         try {
-          const response = await fetch("/api/tasks/generate", {
+          const response = await fetch("/api/attendance/field-force/tasks/generate", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -76,7 +76,7 @@ export function SupervisorTools() {
 
   return (
     <>
-      <OutletImportForm endpoint="/api/admin/import-outlets" />
+      <OutletImportForm endpoint="/api/attendance/field-force/outlets/import" />
 
       <section className="rounded-3xl border border-white/60 bg-white/90 p-6 shadow-lg shadow-slate-900/5">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-700">

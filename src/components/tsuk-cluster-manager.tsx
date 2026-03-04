@@ -639,7 +639,7 @@ export function TsukClusterManager({
             ]),
           );
 
-          const saveResponse = await fetch("/api/admin/assignments/bulk", {
+          const saveResponse = await fetch("/api/attendance/field-force/assignments/bulk", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

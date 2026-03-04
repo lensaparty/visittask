@@ -133,7 +133,7 @@ export function DutyToggle({
     }
 
     try {
-      await postJson("/api/tracking/ping", latestPosition);
+      await postJson("/api/attendance/field-force/tracking/ping", latestPosition);
       setLastSentAt(new Date().toISOString());
     } catch (error) {
       setMessage(
@@ -203,9 +203,12 @@ export function DutyToggle({
           const position = await getCurrentPosition();
           setLatestPosition(position);
 
-          const payload = await postJson<{ sessionId: string }>("/api/tracking/duty/start", position);
+          const payload = await postJson<{ sessionId: string }>(
+            "/api/attendance/field-force/tracking/duty/start",
+            position,
+          );
           setActiveSessionId(payload.sessionId);
-          await postJson("/api/tracking/ping", position);
+          await postJson("/api/attendance/field-force/tracking/ping", position);
           setLastSentAt(new Date().toISOString());
           router.refresh();
         } catch (error) {
@@ -226,7 +229,7 @@ export function DutyToggle({
       void (async () => {
         try {
           const position = await getCurrentPosition().catch(() => null);
-          await postJson("/api/tracking/duty/stop", position ?? {});
+          await postJson("/api/attendance/field-force/tracking/duty/stop", position ?? {});
           setActiveSessionId(null);
           setLatestPosition(null);
           setLastSentAt(null);

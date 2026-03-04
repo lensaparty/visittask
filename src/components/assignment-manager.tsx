@@ -610,7 +610,7 @@ export function AssignmentManager({
     startTransition(() => {
       void (async () => {
         try {
-          const response = await fetch("/api/admin/assignments/bulk", {
+          const response = await fetch("/api/attendance/field-force/assignments/bulk", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -632,7 +632,7 @@ export function AssignmentManager({
             "Assignment saved. Generate task hari ini dijalankan otomatis.";
 
           try {
-            const generateResponse = await fetch("/api/tasks/generate", {
+            const generateResponse = await fetch("/api/attendance/field-force/tasks/generate", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",

@@ -23,7 +23,7 @@ type OutletResetResponse = {
 };
 
 export function OutletImportForm({
-  endpoint = "/api/admin/import-outlets",
+  endpoint = "/api/attendance/field-force/outlets/import",
   title = "Outlet Import",
   description = "Upload the latest outlet workbook (.xlsx).",
   buttonLabel = "Import Outlets",
@@ -97,7 +97,7 @@ export function OutletImportForm({
     startResetTransition(() => {
       void (async () => {
         try {
-          const response = await fetch("/api/admin/outlets/reset", {
+          const response = await fetch("/api/attendance/field-force/outlets/reset", {
             method: "POST",
           });
           const payload = (await response.json().catch(() => ({}))) as OutletResetResponse;
