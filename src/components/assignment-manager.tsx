@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState, useTransition } from "react";
+import { FormEvent, useEffect, useMemo, useState, useTransition } from "react";
 import { AssignmentPreviewMap } from "@/components/assignment-preview-map";
 
 type AssignableUser = {
@@ -254,6 +254,7 @@ export function AssignmentManager({
   const [isPending, startTransition] = useTransition();
   const [isDeletePending, startDeleteTransition] = useTransition();
   const [showInactiveHistory, setShowInactiveHistory] = useState(false);
+  const [unassignGroupFilter, setUnassignGroupFilter] = useState("");
 
   const selectedUser = users.find((candidate) => candidate.id === selectedUserId) ?? null;
   const selectedCodes = parseOutletCodes(textareaValue);
@@ -289,6 +290,18 @@ export function AssignmentManager({
     (assignment) => !assignment.active && selectedCodeSet.has(assignment.kodeToko),
   ).length;
   const draftActiveCount = selectedCodes.length;
+  const unassignGroupOptions = useMemo(
+    () =>
+      [
+        ...new Set(
+          assignments
+            .filter((assignment) => assignment.active)
+            .map((assignment) => assignment.territoryGroup ?? "")
+            .filter((value) => value.length > 0),
+        ),
+      ].sort((left, right) => left.localeCompare(right)),
+    [assignments],
+  );
 
   function getDraftStateLabel(assignment: AssignmentView) {
     if (assignment.active) {
@@ -443,6 +456,48 @@ export function AssignmentManager({
     setTextareaValue(mergedCodes.join("\n"));
     setRemovedCodes([]);
     setRemovedQuery("");
+    setSubmitResult(null);
+    setSubmitError(null);
+  }
+
+  function handleUnassignByGroup() {
+    if (!selectedUser) {
+      setSubmitError("Pilih user field force dulu.");
+      return;
+    }
+
+    if (!unassignGroupFilter) {
+      setSubmitError("Pilih group dulu sebelum unassign.");
+      return;
+    }
+
+    const targetCodes = assignments
+      .filter(
+        (assignment) =>
+          assignment.active && (assignment.territoryGroup ?? "") === unassignGroupFilter,
+      )
+      .map((assignment) => assignment.kodeToko);
+
+    if (targetCodes.length === 0) {
+      setSubmitError("Tidak ada assignment aktif yang cocok dengan group tersebut.");
+      return;
+    }
+
+    const targetCodeSet = new Set(targetCodes);
+    const nextSelectedCodes = selectedCodes.filter((code) => !targetCodeSet.has(code));
+
+    setTextareaValue(nextSelectedCodes.join("\n"));
+    setRemovedCodes((currentCodes) => {
+      const nextRemoved = [...currentCodes];
+
+      for (const code of targetCodes) {
+        if (!nextRemoved.includes(code)) {
+          nextRemoved.unshift(code);
+        }
+      }
+
+      return nextRemoved;
+    });
     setSubmitResult(null);
     setSubmitError(null);
   }
@@ -739,6 +794,36 @@ export function AssignmentManager({
                 <p className="mt-1 font-medium text-slate-900">
                   {outlets.length}
                 </p>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
+              <p className="font-semibold">Unassign by Group</p>
+              <p className="mt-1 text-amber-800">
+                Pilih group untuk memindahkan assignment aktif ke pending remove. Setelah itu klik{" "}
+                <span className="font-semibold">Save Assignments</span> untuk menerapkan.
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <select
+                  className="w-full rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-amber-400"
+                  onChange={(event) => setUnassignGroupFilter(event.target.value)}
+                  value={unassignGroupFilter}
+                >
+                  <option value="">Pilih Group</option>
+                  {unassignGroupOptions.map((group) => (
+                    <option key={group} value={group}>
+                      {group}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="rounded-2xl border border-amber-300 bg-white px-4 py-3 text-sm font-semibold text-amber-800 transition hover:border-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={!selectedUser || !unassignGroupFilter}
+                  onClick={handleUnassignByGroup}
+                  type="button"
+                >
+                  Unassign Group
+                </button>
               </div>
             </div>
 
