@@ -336,6 +336,38 @@ export function FieldRoutePlanner({
     });
   }
 
+  function handleExportTentativeWorkbook() {
+    if (visibleAssignments.length === 0) {
+      return;
+    }
+
+    void (async () => {
+      const { utils, writeFile } = await import("xlsx");
+      const rows = visibleAssignments.map((assignment, index) => ({
+        Urutan: index + 1,
+        "Kode Toko": assignment.kodeToko,
+        "Nama Toko": assignment.namaToko,
+        Alamat: assignment.alamat,
+        Territory: assignment.territory ?? "",
+        Group: assignment.territoryGroup ?? "",
+        Supervisor: assignment.supervisorName ?? "",
+        "No Telp SPV": assignment.noTelpSpv ?? "",
+        "Type Outlet": assignment.typeOutlet ?? "",
+        "Visual PPOSM": assignment.visualPposm ?? "",
+        Brand: assignment.brand ?? "",
+        Ukuran: assignment.ukuran ?? "",
+        "Jumlah Sunscreen": assignment.jumlahSunscreen ?? 0,
+        Latitude: assignment.lat,
+        Longitude: assignment.lon,
+      }));
+      const worksheet = utils.json_to_sheet(rows);
+      const workbook = utils.book_new();
+
+      utils.book_append_sheet(workbook, worksheet, "Tentatif Tangguhan");
+      writeFile(workbook, "tentatif-tangguhkan.xlsx");
+    })();
+  }
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600">
@@ -511,14 +543,26 @@ export function FieldRoutePlanner({
               <span className="font-semibold text-slate-900">{visibleAssignments.length}</span>{" "}
               outlet dari {assignments.length} assignment aktif.
             </p>
-            <button
-              className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:border-rose-300 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
-              disabled={isSuspensionPending || !hasAssetFilterActive || visibleAssignments.length === 0}
-              onClick={handleSuspendFilteredOutlets}
-              type="button"
-            >
-              {isSuspensionPending ? "Menangguhkan..." : "Tangguhkan Outlet Terfilter"}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm font-semibold text-cyan-700 transition hover:border-cyan-300 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
+                disabled={visibleAssignments.length === 0}
+                onClick={handleExportTentativeWorkbook}
+                type="button"
+              >
+                Export Tentatif
+              </button>
+              <button
+                className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:border-rose-300 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-500"
+                disabled={
+                  isSuspensionPending || !hasAssetFilterActive || visibleAssignments.length === 0
+                }
+                onClick={handleSuspendFilteredOutlets}
+                type="button"
+              >
+                {isSuspensionPending ? "Menangguhkan..." : "Tangguhkan Outlet Terfilter"}
+              </button>
+            </div>
           </div>
         </div>
 

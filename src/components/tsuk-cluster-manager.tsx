@@ -1,7 +1,7 @@
 "use client";
 
 import { ScheduleDay } from "@prisma/client";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { AssignmentPreviewMap } from "@/components/assignment-preview-map";
 import { haversineDistanceMeters } from "@/lib/geo";
 
@@ -90,6 +90,15 @@ const SCHEDULE_DAY_LABELS: Record<ScheduleDay, string> = {
   [ScheduleDay.SABTU]: "Sabtu",
   [ScheduleDay.MINGGU]: "Minggu",
 };
+const SCHEDULE_DAY_ORDER: ScheduleDay[] = [
+  ScheduleDay.SENIN,
+  ScheduleDay.SELASA,
+  ScheduleDay.RABU,
+  ScheduleDay.KAMIS,
+  ScheduleDay.JUMAT,
+  ScheduleDay.SABTU,
+  ScheduleDay.MINGGU,
+];
 
 function parseCoordinateInput(value: string) {
   const parsed = Number(value.trim());
@@ -456,13 +465,92 @@ export function TsukClusterManager({
   const normalizedQuery = query.trim().toLowerCase();
   const selectedUser = users.find((user) => user.id === selectedUserId) ?? null;
 
+  function matchesCompositeFilters(
+    outlet: TsukOutletView,
+    ignored:
+      | "regency"
+      | "subdistrict"
+      | "territory"
+      | "group"
+      | "brand"
+      | "scheduleParity"
+      | "scheduleDay"
+      | null = null,
+  ) {
+    if (
+      ignored !== "regency" &&
+      regencyFilter &&
+      (outlet.regency ?? "") !== regencyFilter
+    ) {
+      return false;
+    }
+    if (
+      ignored !== "subdistrict" &&
+      subdistrictFilter &&
+      (outlet.subdistrict ?? "") !== subdistrictFilter
+    ) {
+      return false;
+    }
+    if (
+      ignored !== "territory" &&
+      territoryFilter &&
+      (outlet.territory ?? "") !== territoryFilter
+    ) {
+      return false;
+    }
+    if (
+      ignored !== "group" &&
+      groupFilter &&
+      (outlet.territoryGroup ?? "") !== groupFilter
+    ) {
+      return false;
+    }
+    if (ignored !== "brand" && brandFilter && (outlet.brand ?? "") !== brandFilter) {
+      return false;
+    }
+
+    const effectiveParity = ignored === "scheduleParity" ? "" : scheduleParity;
+    const effectiveDay = ignored === "scheduleDay" ? "" : scheduleDayFilter;
+
+    if (!matchesScheduleFilter(outlet, effectiveParity, effectiveDay)) {
+      return false;
+    }
+
+    if (!normalizedQuery) {
+      return true;
+    }
+
+    return [
+      outlet.storeCode,
+      outlet.name,
+      outlet.address,
+      outlet.subdistrict ?? "",
+      outlet.regency ?? "",
+      outlet.district ?? "",
+      outlet.territory ?? "",
+      outlet.territoryGroup ?? "",
+      outlet.brand ?? "",
+      outlet.oddScheduleDay ? SCHEDULE_DAY_LABELS[outlet.oddScheduleDay] : "",
+      outlet.evenScheduleDay ? SCHEDULE_DAY_LABELS[outlet.evenScheduleDay] : "",
+      outlet.supervisorName ?? "",
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedQuery);
+  }
+
   const regencyOptions = [
-    ...new Set(outlets.map((outlet) => outlet.regency ?? "").filter((value) => value.length > 0)),
+    ...new Set(
+      outlets
+        .filter((outlet) => matchesCompositeFilters(outlet, "regency"))
+        .map((outlet) => outlet.regency ?? "")
+        .filter((value) => value.length > 0),
+    ),
   ].sort((left, right) => left.localeCompare(right));
   const subdistrictOptions = [
     ...new Set(
       outlets
-        .filter((outlet) => !regencyFilter || (outlet.regency ?? "") === regencyFilter)
+        .filter((outlet) => matchesCompositeFilters(outlet, "subdistrict"))
         .map((outlet) => outlet.subdistrict ?? "")
         .filter((value) => value.length > 0),
     ),
@@ -470,22 +558,7 @@ export function TsukClusterManager({
   const territoryOptions = [
     ...new Set(
       outlets
-        .filter((outlet) => {
-          if (regencyFilter && (outlet.regency ?? "") !== regencyFilter) {
-            return false;
-          }
-          if (subdistrictFilter && (outlet.subdistrict ?? "") !== subdistrictFilter) {
-            return false;
-          }
-          if (groupFilter && (outlet.territoryGroup ?? "") !== groupFilter) {
-            return false;
-          }
-          if (brandFilter && (outlet.brand ?? "") !== brandFilter) {
-            return false;
-          }
-
-          return matchesScheduleFilter(outlet, scheduleParity, scheduleDayFilter);
-        })
+        .filter((outlet) => matchesCompositeFilters(outlet, "territory"))
         .map((outlet) => outlet.territory ?? "")
         .filter((value) => value.length > 0),
     ),
@@ -493,22 +566,7 @@ export function TsukClusterManager({
   const groupOptions = [
     ...new Set(
       outlets
-        .filter((outlet) => {
-          if (regencyFilter && (outlet.regency ?? "") !== regencyFilter) {
-            return false;
-          }
-          if (subdistrictFilter && (outlet.subdistrict ?? "") !== subdistrictFilter) {
-            return false;
-          }
-          if (territoryFilter && (outlet.territory ?? "") !== territoryFilter) {
-            return false;
-          }
-          if (brandFilter && (outlet.brand ?? "") !== brandFilter) {
-            return false;
-          }
-
-          return matchesScheduleFilter(outlet, scheduleParity, scheduleDayFilter);
-        })
+        .filter((outlet) => matchesCompositeFilters(outlet, "group"))
         .map((outlet) => outlet.territoryGroup ?? "")
         .filter((value) => value.length > 0),
     ),
@@ -516,81 +574,107 @@ export function TsukClusterManager({
   const brandOptions = [
     ...new Set(
       outlets
-        .filter((outlet) => {
-          if (regencyFilter && (outlet.regency ?? "") !== regencyFilter) {
-            return false;
-          }
-          if (subdistrictFilter && (outlet.subdistrict ?? "") !== subdistrictFilter) {
-            return false;
-          }
-          if (territoryFilter && (outlet.territory ?? "") !== territoryFilter) {
-            return false;
-          }
-          if (groupFilter && (outlet.territoryGroup ?? "") !== groupFilter) {
-            return false;
-          }
-
-          return matchesScheduleFilter(outlet, scheduleParity, scheduleDayFilter);
-        })
+        .filter((outlet) => matchesCompositeFilters(outlet, "brand"))
         .map((outlet) => outlet.brand ?? "")
         .filter((value) => value.length > 0),
     ),
   ].sort((left, right) => left.localeCompare(right));
+  const scheduleDayOptions = (() => {
+    const relevantOutlets = outlets.filter((outlet) =>
+      matchesCompositeFilters(outlet, "scheduleDay"),
+    );
+    const nextValues = new Set<ScheduleDay>();
 
-  const filteredOutlets = useMemo(
-    () =>
-      outlets.filter((outlet) => {
-        if (regencyFilter && (outlet.regency ?? "") !== regencyFilter) {
-          return false;
+    for (const outlet of relevantOutlets) {
+      if (scheduleParity === "ODD") {
+        if (outlet.oddScheduleDay) {
+          nextValues.add(outlet.oddScheduleDay);
         }
-        if (subdistrictFilter && (outlet.subdistrict ?? "") !== subdistrictFilter) {
-          return false;
-        }
-        if (territoryFilter && (outlet.territory ?? "") !== territoryFilter) {
-          return false;
-        }
-        if (groupFilter && (outlet.territoryGroup ?? "") !== groupFilter) {
-          return false;
-        }
-        if (brandFilter && (outlet.brand ?? "") !== brandFilter) {
-          return false;
-        }
-        if (!matchesScheduleFilter(outlet, scheduleParity, scheduleDayFilter)) {
-          return false;
-        }
-        if (!normalizedQuery) {
-          return true;
-        }
+        continue;
+      }
 
-        return [
-          outlet.storeCode,
-          outlet.name,
-          outlet.address,
-          outlet.subdistrict ?? "",
-          outlet.regency ?? "",
-          outlet.district ?? "",
-          outlet.territory ?? "",
-          outlet.territoryGroup ?? "",
-          outlet.oddScheduleDay ? SCHEDULE_DAY_LABELS[outlet.oddScheduleDay] : "",
-          outlet.evenScheduleDay ? SCHEDULE_DAY_LABELS[outlet.evenScheduleDay] : "",
-          outlet.supervisorName ?? "",
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(normalizedQuery);
-      }),
-    [
-      groupFilter,
-      brandFilter,
-      normalizedQuery,
-      outlets,
-      regencyFilter,
-      scheduleDayFilter,
-      scheduleParity,
-      subdistrictFilter,
-      territoryFilter,
-    ],
-  );
+      if (scheduleParity === "EVEN") {
+        if (outlet.evenScheduleDay) {
+          nextValues.add(outlet.evenScheduleDay);
+        }
+        continue;
+      }
+
+      if (outlet.oddScheduleDay) {
+        nextValues.add(outlet.oddScheduleDay);
+      }
+      if (outlet.evenScheduleDay) {
+        nextValues.add(outlet.evenScheduleDay);
+      }
+    }
+
+    return SCHEDULE_DAY_ORDER.filter((day) => nextValues.has(day));
+  })();
+  const scheduleParityOptions = (() => {
+    const relevantOutlets = outlets.filter((outlet) =>
+      matchesCompositeFilters(outlet, "scheduleParity"),
+    );
+
+    return {
+      ODD: relevantOutlets.some((outlet) =>
+        scheduleDayFilter
+          ? outlet.oddScheduleDay === scheduleDayFilter
+          : Boolean(outlet.oddScheduleDay),
+      ),
+      EVEN: relevantOutlets.some((outlet) =>
+        scheduleDayFilter
+          ? outlet.evenScheduleDay === scheduleDayFilter
+          : Boolean(outlet.evenScheduleDay),
+      ),
+    };
+  })();
+
+  const filteredOutlets = outlets.filter((outlet) => matchesCompositeFilters(outlet));
+
+  useEffect(() => {
+    if (regencyFilter && !regencyOptions.includes(regencyFilter)) {
+      setRegencyFilter("");
+    }
+  }, [regencyFilter, regencyOptions]);
+
+  useEffect(() => {
+    if (subdistrictFilter && !subdistrictOptions.includes(subdistrictFilter)) {
+      setSubdistrictFilter("");
+    }
+  }, [subdistrictFilter, subdistrictOptions]);
+
+  useEffect(() => {
+    if (territoryFilter && !territoryOptions.includes(territoryFilter)) {
+      setTerritoryFilter("");
+    }
+  }, [territoryFilter, territoryOptions]);
+
+  useEffect(() => {
+    if (groupFilter && !groupOptions.includes(groupFilter)) {
+      setGroupFilter("");
+    }
+  }, [groupFilter, groupOptions]);
+
+  useEffect(() => {
+    if (brandFilter && !brandOptions.includes(brandFilter)) {
+      setBrandFilter("");
+    }
+  }, [brandFilter, brandOptions]);
+
+  useEffect(() => {
+    if (scheduleDayFilter && !scheduleDayOptions.includes(scheduleDayFilter)) {
+      setScheduleDayFilter("");
+    }
+  }, [scheduleDayFilter, scheduleDayOptions]);
+
+  useEffect(() => {
+    if (
+      (scheduleParity === "ODD" && !scheduleParityOptions.ODD) ||
+      (scheduleParity === "EVEN" && !scheduleParityOptions.EVEN)
+    ) {
+      setScheduleParity("");
+    }
+  }, [scheduleParity, scheduleParityOptions]);
 
   const officePosition = useMemo(() => {
     const latitude = parseCoordinateInput(officeLatInput);
@@ -972,8 +1056,12 @@ export function TsukClusterManager({
               value={scheduleParity}
             >
               <option value="">Semua Jadwal</option>
-              <option value="ODD">Ganjil</option>
-              <option value="EVEN">Genap</option>
+              <option disabled={!scheduleParityOptions.ODD} value="ODD">
+                Ganjil
+              </option>
+              <option disabled={!scheduleParityOptions.EVEN} value="EVEN">
+                Genap
+              </option>
             </select>
           </label>
 
@@ -987,9 +1075,9 @@ export function TsukClusterManager({
               value={scheduleDayFilter}
             >
               <option value="">Semua Hari</option>
-              {Object.entries(SCHEDULE_DAY_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
+              {scheduleDayOptions.map((day) => (
+                <option key={day} value={day}>
+                  {SCHEDULE_DAY_LABELS[day]}
                 </option>
               ))}
             </select>
