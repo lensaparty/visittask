@@ -442,6 +442,7 @@ export function TsukClusterManager({
   const [subdistrictFilter, setSubdistrictFilter] = useState("");
   const [territoryFilter, setTerritoryFilter] = useState("");
   const [groupFilter, setGroupFilter] = useState("");
+  const [brandFilter, setBrandFilter] = useState("");
   const [scheduleParity, setScheduleParity] = useState<"" | "ODD" | "EVEN">("");
   const [scheduleDayFilter, setScheduleDayFilter] = useState<ScheduleDay | "">("");
   const [officeLatInput, setOfficeLatInput] = useState("");
@@ -479,6 +480,9 @@ export function TsukClusterManager({
           if (groupFilter && (outlet.territoryGroup ?? "") !== groupFilter) {
             return false;
           }
+          if (brandFilter && (outlet.brand ?? "") !== brandFilter) {
+            return false;
+          }
 
           return matchesScheduleFilter(outlet, scheduleParity, scheduleDayFilter);
         })
@@ -499,10 +503,36 @@ export function TsukClusterManager({
           if (territoryFilter && (outlet.territory ?? "") !== territoryFilter) {
             return false;
           }
+          if (brandFilter && (outlet.brand ?? "") !== brandFilter) {
+            return false;
+          }
 
           return matchesScheduleFilter(outlet, scheduleParity, scheduleDayFilter);
         })
         .map((outlet) => outlet.territoryGroup ?? "")
+        .filter((value) => value.length > 0),
+    ),
+  ].sort((left, right) => left.localeCompare(right));
+  const brandOptions = [
+    ...new Set(
+      outlets
+        .filter((outlet) => {
+          if (regencyFilter && (outlet.regency ?? "") !== regencyFilter) {
+            return false;
+          }
+          if (subdistrictFilter && (outlet.subdistrict ?? "") !== subdistrictFilter) {
+            return false;
+          }
+          if (territoryFilter && (outlet.territory ?? "") !== territoryFilter) {
+            return false;
+          }
+          if (groupFilter && (outlet.territoryGroup ?? "") !== groupFilter) {
+            return false;
+          }
+
+          return matchesScheduleFilter(outlet, scheduleParity, scheduleDayFilter);
+        })
+        .map((outlet) => outlet.brand ?? "")
         .filter((value) => value.length > 0),
     ),
   ].sort((left, right) => left.localeCompare(right));
@@ -520,6 +550,9 @@ export function TsukClusterManager({
           return false;
         }
         if (groupFilter && (outlet.territoryGroup ?? "") !== groupFilter) {
+          return false;
+        }
+        if (brandFilter && (outlet.brand ?? "") !== brandFilter) {
           return false;
         }
         if (!matchesScheduleFilter(outlet, scheduleParity, scheduleDayFilter)) {
@@ -548,6 +581,7 @@ export function TsukClusterManager({
       }),
     [
       groupFilter,
+      brandFilter,
       normalizedQuery,
       outlets,
       regencyFilter,
@@ -831,7 +865,7 @@ export function TsukClusterManager({
           />
         </label>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-8">
           <label className="block space-y-2 text-sm font-medium text-slate-700">
             <span>Mode Cluster</span>
             <select
@@ -907,6 +941,22 @@ export function TsukClusterManager({
             >
               <option value="">Semua Group</option>
               {groupOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block space-y-2 text-sm font-medium text-slate-700">
+            <span>Filter Brand</span>
+            <select
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-cyan-400"
+              onChange={(event) => setBrandFilter(event.target.value)}
+              value={brandFilter}
+            >
+              <option value="">Semua Brand</option>
+              {brandOptions.map((option) => (
                 <option key={option} value={option}>
                   {option}
                 </option>
